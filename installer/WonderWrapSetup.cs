@@ -221,7 +221,7 @@ namespace WonderWrapInstaller
 
     internal static class WonderWrapSetup
     {
-        internal const string AppVersion = "1.1.0";
+        internal const string AppVersion = "1.1.1";
         private const string PayloadResourceName = "WonderWrapPayload.zip";
         private const string WidgetPkgName = "Wonder.WrapWidget";
         private const string OldWidgetPkgName = "Woneder.InstantReplayWidget";
