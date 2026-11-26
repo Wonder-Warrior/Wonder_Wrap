@@ -1,19 +1,4 @@
-"""
-Woneder Instant Replay — Ultra-Low-RAM Windows Background Daemon (Milestone 1).
-
-Usage:
-  Silent background mode (no console window):
-      pythonw.exe replay_daemon.py
-      (or double-click start_replay_silent.vbs)
-
-  Foreground with live terminal logs:
-      python replay_daemon.py
-
-  Control a running daemon:
-      python replay_daemon.py --save     # Trigger an instant save via IPC
-      python replay_daemon.py --stop     # Gracefully stop the background daemon
-      python replay_daemon.py --status   # Show recent daemon log & save confirmations
-"""
+"""Wonder Wrap background capture & instant replay daemon."""
 
 from __future__ import annotations
 
@@ -35,6 +20,8 @@ from wonder_wrap.hotkey import (
 )
 from wonder_wrap.ipc_server import DEFAULT_IPC_HOST, DEFAULT_IPC_PORT, LocalIpcServer
 from wonder_wrap.replay_engine import ReplayConfig, ReplayEngine
+from wonder_wrap.updater import AutoUpdater
+from wonder_wrap.version import __version__
 from wonder_wrap.win32_dxgi import (
     get_thread_desktop_name,
     get_videos_dir,
@@ -155,7 +142,10 @@ def main() -> int:
         saved_abr = str(saved_settings.get("audio_bitrate", "192k"))
         saved_game_only = bool(saved_settings.get("game_only", True))
         saved_cursor = bool(saved_settings.get("capture_cursor", True))
-        saved_hotkey = str(saved_settings.get("hotkey", "Alt+F10"))
+        saved_hotkey = str(saved_settings.get("hotkey", "Win+Alt+G"))
+        saved_record_hotkey = str(saved_settings.get("record_hotkey", "Win+Alt+R"))
+        saved_screenshot_hotkey = str(saved_settings.get("screenshot_hotkey", "Win+Alt+PrintScreen"))
+        saved_mic_hotkey = str(saved_settings.get("mic_hotkey", "Win+Alt+M"))
 
         vbr_num = int(saved_vbr[:-1]) if saved_vbr.upper().endswith("M") and saved_vbr[:-1].isdigit() else 18
         cfg = ReplayConfig(
@@ -172,10 +162,15 @@ def main() -> int:
             game_only=(False if (args.always_record or args.synthetic_test) else saved_game_only),
             capture_cursor=saved_cursor,
             hotkey=saved_hotkey,
+            record_hotkey=saved_record_hotkey,
+            screenshot_hotkey=saved_screenshot_hotkey,
+            mic_hotkey=saved_mic_hotkey,
             synthetic_test=args.synthetic_test,
         )
         engine = ReplayEngine(cfg)
         engine.start()
+        updater = AutoUpdater()
+        updater.start()
 
         state_lock = threading.Lock()
         last_saved_state = {"filename": "", "path": ""}
@@ -246,8 +241,13 @@ def main() -> int:
             d_mb, f_mb, tot_mb = engine.get_ram_stats()
             with state_lock:
                 last_saved = last_saved_state["filename"]
+            upd = updater.get_state()
             return {
                 "running": True,
+                "version": __version__,
+                "latest_version": upd["latest_version"],
+                "update_available": upd["update_available"],
+                "update_downloading": upd["downloading"],
                 "mode": engine.mode,
                 "game": engine.active_game_name,
                 "encoder": engine.encoder.codec,
@@ -289,11 +289,27 @@ def main() -> int:
         def _trigger_stop_from_ipc() -> None:
             signal_named_event(STOP_EVENT_NAME)
 
+        def _on_record_hotkey() -> None:
+            assert engine is not None
+            engine.toggle_manual_recording()
+
+        def _on_screenshot_hotkey() -> None:
+            _trigger_screenshot()
+
+        def _on_mic_hotkey() -> None:
+            _trigger_mute()
+
         loop = GlobalHotkeyLoop(
             on_save=_on_save_trigger,
             on_periodic_tick=lambda: _log_ram("RAM heartbeat"),
             tick_interval_sec=60.0,
             hotkey_name=cfg.hotkey,
+            on_record=_on_record_hotkey,
+            record_hotkey_name=cfg.record_hotkey,
+            on_screenshot=_on_screenshot_hotkey,
+            screenshot_hotkey_name=cfg.screenshot_hotkey,
+            on_mic=_on_mic_hotkey,
+            mic_hotkey_name=cfg.mic_hotkey,
         )
 
         def _get_settings() -> dict:
@@ -303,8 +319,18 @@ def main() -> int:
         def _update_settings(updates: dict) -> dict:
             assert engine is not None
             res = engine.apply_settings(updates)
-            if res.get("ok") and "hotkey" in res.get("settings", {}):
-                loop.set_hotkey(res["settings"]["hotkey"])
+            if res.get("ok"):
+                s = res.get("settings", {})
+                loop.set_hotkeys({
+                    k_loop: s[k_cfg]
+                    for k_loop, k_cfg in (
+                        ("save", "hotkey"),
+                        ("record", "record_hotkey"),
+                        ("screenshot", "screenshot_hotkey"),
+                        ("mic", "mic_hotkey"),
+                    )
+                    if k_cfg in s
+                })
             return res
 
         def _trigger_ignore_active() -> dict:
@@ -323,6 +349,8 @@ def main() -> int:
             get_settings=_get_settings,
             update_settings=_update_settings,
             trigger_ignore_active=_trigger_ignore_active,
+            trigger_update_check=updater.check_now,
+            trigger_update_install=updater.install_update,
             host=DEFAULT_IPC_HOST,
             port=args.ipc_port,
         )
@@ -349,7 +377,7 @@ def main() -> int:
             engine.stop()
         if mutex:
             k32.CloseHandle(mutex)
-        log.info("=== Woneder Instant Replay Daemon exited cleanly ===")
+        log.info("Wonder Wrap daemon exited cleanly.")
 
 
 if __name__ == "__main__":

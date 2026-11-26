@@ -6,7 +6,7 @@
     Background="#FF181A1F">
 
     <Page.Resources>
-        <!-- Woneder Lime (#A8FF00) Fluent dark capture tile button -->
+        <!-- Fluent dark capture tile button -->
         <Style x:Key="CaptureTileButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="56" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -419,16 +419,63 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Row: Save Hotkey (click & press any key combo) -->
-                    <StackPanel Spacing="3">
-                        <TextBlock Text="Save Replay Hotkey (click &amp; press keys)" FontSize="10.5" Foreground="#FF9CA3AF" />
-                        <TextBox
-                            x:Name="HotkeyInput"
-                            IsReadOnly="True"
-                            PlaceholderText="e.g. Alt+F10, Ctrl+Shift+S, F9"
-                            FontSize="11.5"
-                            ToolTipService.ToolTip="Click here and press any modifier + key (e.g. Alt+F10) or F1-F12"
-                            PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
+                    <!-- Row: Hotkeys (click & press any key combo) -->
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Hotkeys (click &amp; press keys)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                        <Grid ColumnSpacing="8" RowSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Replay" FontSize="9.5" Foreground="#FF6B7280" />
+                                <TextBox
+                                    x:Name="HotkeyInput"
+                                    IsReadOnly="True"
+                                    PlaceholderText="Win+Alt+G"
+                                    FontSize="11"
+                                    ToolTipService.ToolTip="Click and press Replay hotkey"
+                                    PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Record" FontSize="9.5" Foreground="#FF6B7280" />
+                                <TextBox
+                                    x:Name="RecordHotkeyInput"
+                                    IsReadOnly="True"
+                                    PlaceholderText="Win+Alt+R"
+                                    FontSize="11"
+                                    ToolTipService.ToolTip="Click and press Record hotkey"
+                                    PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                                <TextBlock Text="Screenshot" FontSize="9.5" Foreground="#FF6B7280" />
+                                <TextBox
+                                    x:Name="ScreenshotHotkeyInput"
+                                    IsReadOnly="True"
+                                    PlaceholderText="Win+Alt+PrintScreen"
+                                    FontSize="11"
+                                    ToolTipService.ToolTip="Click and press Screenshot hotkey"
+                                    PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                <TextBlock Text="Mic" FontSize="9.5" Foreground="#FF6B7280" />
+                                <TextBox
+                                    x:Name="MicHotkeyInput"
+                                    IsReadOnly="True"
+                                    PlaceholderText="Win+Alt+M"
+                                    FontSize="11"
+                                    ToolTipService.ToolTip="Click and press Mic mute hotkey"
+                                    PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
 
                     <!-- Row: Toggles (Game-Only & Show Cursor) -->
@@ -478,6 +525,34 @@
                             Background="#FF282C36"
                             Foreground="#FFF87171"
                             Click="IgnoreGameButton_Click" />
+                    </Grid>
+
+                    <!-- Row: Auto-update banner (shown when a newer GitHub Release is available) -->
+                    <Grid x:Name="UpdateRow" Visibility="Collapsed" ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="UpdateText"
+                            Grid.Column="0"
+                            Text="Update available"
+                            FontSize="10.5"
+                            FontWeight="SemiBold"
+                            Foreground="#FFA8FF00"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center" />
+                        <Button
+                            x:Name="UpdateButton"
+                            Grid.Column="1"
+                            Content="Update"
+                            FontSize="10.5"
+                            FontWeight="SemiBold"
+                            Padding="8,2,8,2"
+                            CornerRadius="5"
+                            Background="#FFA8FF00"
+                            Foreground="#FF14161B"
+                            Click="UpdateButton_Click" />
                     </Grid>
 
                     <!-- Row: Capture folder path + Browse -->

@@ -1,12 +1,4 @@
-"""
-Lightweight localhost-only HTTP IPC server (127.0.0.1:47821) using Python's
-standard library `http.server` — zero external packages, negligible RAM.
-
-Endpoints:
-  GET  /status -> { "running": true, "ram_mb": ..., "buffer_sec": 30, "last_saved": "..." }
-  POST /save   -> triggers atomic replay save (same path as Alt+F10) and returns saved filename
-  POST /stop   -> gracefully stops the daemon
-"""
+"""Localhost HTTP IPC server (127.0.0.1:47821) bridging the daemon and widget."""
 
 from __future__ import annotations
 
@@ -16,7 +8,7 @@ import logging
 import threading
 from typing import Any, Callable
 
-log = logging.getLogger("woneder.ipc")
+log = logging.getLogger("wonder_wrap.ipc")
 
 DEFAULT_IPC_HOST = "127.0.0.1"
 DEFAULT_IPC_PORT = 47821
@@ -43,6 +35,8 @@ class LocalIpcServer:
         get_settings: Callable[[], dict[str, Any]] | None = None,
         update_settings: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         trigger_ignore_active: Callable[[], dict[str, Any]] | None = None,
+        trigger_update_check: Callable[[], dict[str, Any]] | None = None,
+        trigger_update_install: Callable[[], dict[str, Any]] | None = None,
         host: str = DEFAULT_IPC_HOST,
         port: int = DEFAULT_IPC_PORT,
     ) -> None:
@@ -57,6 +51,8 @@ class LocalIpcServer:
         self._get_settings = get_settings
         self._update_settings = update_settings
         self._trigger_ignore_active = trigger_ignore_active
+        self._trigger_update_check = trigger_update_check
+        self._trigger_update_install = trigger_update_install
         self.host = host
         self.port = port
         self._server: _LocalThreadingHTTPServer | None = None
@@ -174,6 +170,19 @@ class LocalIpcServer:
                     except Exception as exc:
                         log.exception("POST /ignore-active failed: %s", exc)
                         self._send_json(500, {"ok": False, "error": str(exc)})
+                elif path == "/update/check" and parent._trigger_update_check is not None:
+                    try:
+                        self._send_json(200, parent._trigger_update_check())
+                    except Exception as exc:
+                        log.exception("POST /update/check failed: %s", exc)
+                        self._send_json(500, {"ok": False, "error": str(exc)})
+                elif path == "/update/install" and parent._trigger_update_install is not None:
+                    try:
+                        result = parent._trigger_update_install()
+                        self._send_json(200 if result.get("ok") else 409, result)
+                    except Exception as exc:
+                        log.exception("POST /update/install failed: %s", exc)
+                        self._send_json(500, {"ok": False, "error": str(exc)})
                 elif path == "/stop":
                     log.info("HTTP POST /stop triggered")
                     self._send_json(200, {"ok": True, "stopping": True})
@@ -186,7 +195,7 @@ class LocalIpcServer:
         self._thread = threading.Thread(
             target=self._server.serve_forever,
             kwargs={"poll_interval": 0.25},
-            name="woneder-ipc-http",
+            name="wonder-ipc-http",
             daemon=True,
         )
         self._thread.start()

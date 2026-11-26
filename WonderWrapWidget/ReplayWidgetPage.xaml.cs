@@ -21,10 +21,10 @@ namespace WonderWrapWidget
     {
         private const string BaseUrl = "http://127.0.0.1:47821";
 
-        // Signature Woneder Lime (#A8FF00) + polished dark palette
-        private static readonly SolidColorBrush WonederLimeBrush =
+        // Wonder Lime (#A8FF00) + dark Fluent palette
+        private static readonly SolidColorBrush WonderLimeBrush =
             new SolidColorBrush(Color.FromArgb(255, 168, 255, 0));   // #A8FF00
-        private static readonly SolidColorBrush WonederLimeBorderBrush =
+        private static readonly SolidColorBrush WonderLimeBorderBrush =
             new SolidColorBrush(Color.FromArgb(145, 168, 255, 0));   // #91A8FF00
         private static readonly SolidColorBrush DefaultTileBorderBrush =
             new SolidColorBrush(Color.FromArgb(255, 48, 53, 64));    // #303540
@@ -55,7 +55,10 @@ namespace WonderWrapWidget
         private string _mode = "idle";
         private string _activeGame = string.Empty;
         private string _outputDir = string.Empty;
-        private string _hotkey = "Alt+F10";
+        private string _hotkey = "Win+Alt+G";
+        private string _recordHotkey = "Win+Alt+R";
+        private string _screenshotHotkey = "Win+Alt+PrintScreen";
+        private string _micHotkey = "Win+Alt+M";
         private double _recordingSec;
         private double _lastRamMb;
         private int _bufferSec = 30;
@@ -122,7 +125,7 @@ namespace WonderWrapWidget
         {
             _feedbackTimer.Stop();
             _showingFeedback = true;
-            var okBrush = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
+            var okBrush = _settingsOpen ? WonderLimeBrush : IconActiveBrush;
             StatusDot.Fill = isError ? ErrorBrush : okBrush;
             StatusMetaText.Foreground = isError ? ErrorBrush : okBrush;
             StatusMetaText.Text = message;
@@ -153,8 +156,8 @@ namespace WonderWrapWidget
             }
             else if (_mode == "replay")
             {
-                StatusDot.Fill = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
-                StatusMetaText.Foreground = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
+                StatusDot.Fill = _settingsOpen ? WonderLimeBrush : IconActiveBrush;
+                StatusMetaText.Foreground = _settingsOpen ? WonderLimeBrush : IconActiveBrush;
                 StatusMetaText.Text = string.Format("{0:F0} MB", _lastRamMb);
             }
             else
@@ -193,7 +196,11 @@ namespace WonderWrapWidget
                         string game = obj.ContainsKey("game") ? obj["game"].GetString() : string.Empty;
                         string outDir = obj.ContainsKey("output_dir") ? obj["output_dir"].GetString() : string.Empty;
                         double recSec = obj.ContainsKey("recording_sec") ? obj["recording_sec"].GetNumber() : 0.0;
-                        SetOnlineUi(ramMb, bufSec, muted, mode, game, outDir, recSec);
+                        string version = obj.ContainsKey("version") ? obj["version"].GetString() : string.Empty;
+                        bool updateAvail = obj.ContainsKey("update_available") && obj["update_available"].GetBoolean();
+                        string latestVer = obj.ContainsKey("latest_version") ? obj["latest_version"].GetString() : string.Empty;
+                        bool updateDl = obj.ContainsKey("update_downloading") && obj["update_downloading"].GetBoolean();
+                        SetOnlineUi(ramMb, bufSec, muted, mode, game, outDir, recSec, version, updateAvail, latestVer, updateDl);
                     }
                     else
                     {
@@ -211,7 +218,7 @@ namespace WonderWrapWidget
             }
         }
 
-        private void SetOnlineUi(double ramMb, int bufferSec, bool muted, string mode, string game, string outDir, double recSec)
+        private void SetOnlineUi(double ramMb, int bufferSec, bool muted, string mode, string game, string outDir, double recSec, string version, bool updateAvail, string latestVer, bool updateDl)
         {
             _isOnline = true;
             _lastRamMb = ramMb;
@@ -221,11 +228,27 @@ namespace WonderWrapWidget
             _outputDir = outDir;
             _recordingSec = recSec;
 
+            if (updateAvail && !string.IsNullOrEmpty(latestVer))
+            {
+                UpdateRow.Visibility = Visibility.Visible;
+                UpdateText.Text = updateDl ? ("Downloading v" + latestVer + "...") : ("Update available: v" + latestVer);
+                UpdateButton.IsEnabled = !updateDl;
+            }
+            else
+            {
+                UpdateRow.Visibility = Visibility.Collapsed;
+            }
+            if (!string.IsNullOrEmpty(version) && !EncoderBadgeText.Text.Contains("v" + version))
+            {
+                string enc = EncoderBadgeText.Text.Split('·')[0].Trim();
+                EncoderBadgeText.Text = enc + " · v" + version;
+            }
+
             bool isRecording = mode == "recording";
             bool isReplay = mode == "replay";
 
-            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonederLimeBrush : IconActiveBrush) : SubtleGrayBrush;
-            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonderLimeBrush : IconActiveBrush) : SubtleGrayBrush;
+            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonderLimeBorderBrush : DefaultTileBorderBrush;
 
             RecordDot.Visibility = isRecording ? Visibility.Collapsed : Visibility.Visible;
             RecordDot.Fill = IconActiveBrush;
@@ -357,6 +380,21 @@ namespace WonderWrapWidget
                         _hotkey = s["hotkey"].GetString();
                         HotkeyInput.Text = _hotkey;
                     }
+                    if (s.ContainsKey("record_hotkey"))
+                    {
+                        _recordHotkey = s["record_hotkey"].GetString();
+                        RecordHotkeyInput.Text = _recordHotkey;
+                    }
+                    if (s.ContainsKey("screenshot_hotkey"))
+                    {
+                        _screenshotHotkey = s["screenshot_hotkey"].GetString();
+                        ScreenshotHotkeyInput.Text = _screenshotHotkey;
+                    }
+                    if (s.ContainsKey("mic_hotkey"))
+                    {
+                        _micHotkey = s["mic_hotkey"].GetString();
+                        MicHotkeyInput.Text = _micHotkey;
+                    }
                     if (s.ContainsKey("game_only")) GameOnlyCheck.IsChecked = s["game_only"].GetBoolean();
                     if (s.ContainsKey("capture_cursor")) CursorCheck.IsChecked = s["capture_cursor"].GetBoolean();
                     if (s.ContainsKey("output_dir")) FolderPathText.Text = s["output_dir"].GetString();
@@ -374,11 +412,11 @@ namespace WonderWrapWidget
         {
             _settingsOpen = !_settingsOpen;
             SettingsPanel.Visibility = _settingsOpen ? Visibility.Visible : Visibility.Collapsed;
-            SettingsIcon.Foreground = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
-            SettingsButton.BorderBrush = _settingsOpen ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            SettingsIcon.Foreground = _settingsOpen ? WonderLimeBrush : IconActiveBrush;
+            SettingsButton.BorderBrush = _settingsOpen ? WonderLimeBorderBrush : DefaultTileBorderBrush;
             bool isReplay = _mode == "replay";
-            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonederLimeBrush : IconActiveBrush) : SubtleGrayBrush;
-            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonderLimeBrush : IconActiveBrush) : SubtleGrayBrush;
+            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonderLimeBorderBrush : DefaultTileBorderBrush;
             UpdateMetaLabel();
 
             if (_settingsOpen)
@@ -443,23 +481,45 @@ namespace WonderWrapWidget
 
             var win = Window.Current.CoreWindow;
             bool ctrl = (win.GetKeyState(VirtualKey.Control) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+            bool winMod = (win.GetKeyState(VirtualKey.LeftWindows) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down ||
+                          (win.GetKeyState(VirtualKey.RightWindows) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
             bool alt = (win.GetKeyState(VirtualKey.Menu) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
             bool shift = (win.GetKeyState(VirtualKey.Shift) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
 
-            if (!ctrl && !alt && !shift && !IsModFreeKey(key))
+            if (!ctrl && !winMod && !alt && !shift && !IsModFreeKey(key))
             {
-                ShowFeedback("Add Ctrl/Alt/Shift", isError: true);
+                ShowFeedback("Add Ctrl/Win/Alt/Shift", isError: true);
                 return;
             }
 
             string combo = string.Empty;
             if (ctrl) combo += "Ctrl+";
+            if (winMod) combo += "Win+";
             if (alt) combo += "Alt+";
             if (shift) combo += "Shift+";
             combo += token;
 
-            _hotkey = combo;
-            HotkeyInput.Text = combo;
+            var box = sender as TextBox;
+            if (box == RecordHotkeyInput)
+            {
+                _recordHotkey = combo;
+                RecordHotkeyInput.Text = combo;
+            }
+            else if (box == ScreenshotHotkeyInput)
+            {
+                _screenshotHotkey = combo;
+                ScreenshotHotkeyInput.Text = combo;
+            }
+            else if (box == MicHotkeyInput)
+            {
+                _micHotkey = combo;
+                MicHotkeyInput.Text = combo;
+            }
+            else
+            {
+                _hotkey = combo;
+                HotkeyInput.Text = combo;
+            }
             await ApplySettingsFromUiAsync();
         }
 
@@ -517,9 +577,13 @@ namespace WonderWrapWidget
             payload["video_bitrate"] = JsonValue.CreateStringValue(clampedVbr + "M");
             payload["audio_bitrate"] = JsonValue.CreateStringValue(clampedAbr + "k");
             if (!string.IsNullOrWhiteSpace(_hotkey))
-            {
                 payload["hotkey"] = JsonValue.CreateStringValue(_hotkey);
-            }
+            if (!string.IsNullOrWhiteSpace(_recordHotkey))
+                payload["record_hotkey"] = JsonValue.CreateStringValue(_recordHotkey);
+            if (!string.IsNullOrWhiteSpace(_screenshotHotkey))
+                payload["screenshot_hotkey"] = JsonValue.CreateStringValue(_screenshotHotkey);
+            if (!string.IsNullOrWhiteSpace(_micHotkey))
+                payload["mic_hotkey"] = JsonValue.CreateStringValue(_micHotkey);
             payload["game_only"] = JsonValue.CreateBooleanValue(GameOnlyCheck.IsChecked == true);
             payload["capture_cursor"] = JsonValue.CreateBooleanValue(CursorCheck.IsChecked == true);
 
@@ -735,6 +799,33 @@ namespace WonderWrapWidget
             {
                 _actionInFlight = false;
                 await RefreshStatusAsync();
+            }
+        }
+
+        private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+        {
+            UpdateButton.IsEnabled = false;
+            UpdateText.Text = "Downloading update...";
+            try
+            {
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                {
+                    var resp = await _http.PostAsync(new Uri(BaseUrl + "/update/install"), new HttpStringContent(string.Empty)).AsTask(cts.Token);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        ShowFeedback("Updating...");
+                    }
+                    else
+                    {
+                        ShowFeedback("Update failed", isError: true);
+                        UpdateButton.IsEnabled = true;
+                    }
+                }
+            }
+            catch
+            {
+                ShowFeedback("Update error", isError: true);
+                UpdateButton.IsEnabled = true;
             }
         }
 

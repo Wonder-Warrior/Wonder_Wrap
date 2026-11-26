@@ -1,29 +1,54 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Builds the single-file standalone Windows installer:
-      dist\WonderWrap_Installer.exe
-
-    Embeds:
-      - Standalone WonderWrapDaemon.exe (PyInstaller --noconsole --onedir)
-      - Bundled ffmpeg.exe
-      - Release x64 .NET Native Wonder Wrap Xbox Game Bar Widget (AppXLayout + Dependencies\x64)
-      - WonderWrapUninstall.exe
-#>
-
 [CmdletBinding()]
-param()
+param(
+    [string]$Version = ""
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RootDir      = Split-Path -Parent $MyInvocation.MyCommand.Path
+$VersionFile  = Join-Path $RootDir "VERSION"
 $StageDir     = Join-Path $RootDir "build\stage"
 $PayloadZip   = Join-Path $RootDir "build\WonderWrapPayload.zip"
 $PyDist       = Join-Path $RootDir "build\pydist"
 $PyWork       = Join-Path $RootDir "build\pyinstaller"
 $DistDir      = Join-Path $RootDir "dist"
 $InstallerExe = Join-Path $DistDir "WonderWrap_Installer.exe"
+
+if ($Version) {
+    $Version = $Version.Trim().TrimStart("v", "V")
+    Set-Content -Path $VersionFile -Value $Version -Encoding ASCII
+} elseif (Test-Path $VersionFile) {
+    $Version = (Get-Content $VersionFile -Raw).Trim().TrimStart("v", "V")
+} else {
+    $Version = "1.0.0"
+    Set-Content -Path $VersionFile -Value $Version -Encoding ASCII
+}
+
+if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Invalid version '$Version'. Expected semantic version like 1.1.0."
+}
+$Version4 = "$Version.0"
+Write-Host "=== Building Wonder Wrap v$Version ===" -ForegroundColor Green
+
+# Sync single-source VERSION across daemon, UWP manifest, AssemblyInfo, and GUI installer
+Set-Content -Path (Join-Path $RootDir "wonder_wrap\version.py") -Encoding UTF8 -Value @"
+__version__ = "$Version"
+GITHUB_REPO = "Wonder-Warrior/Wonder_Wrap"
+INSTALLER_ASSET_NAME = "WonderWrap_Installer.exe"
+"@
+
+$manifestPath = Join-Path $RootDir "WonderWrapWidget\Package.appxmanifest"
+(Get-Content $manifestPath -Raw) -replace 'Version="\d+\.\d+\.\d+\.\d+"', "Version=`"$Version4`"" | Set-Content $manifestPath -NoNewline -Encoding UTF8
+
+$asmInfoPath = Join-Path $RootDir "WonderWrapWidget\Properties\AssemblyInfo.cs"
+(Get-Content $asmInfoPath -Raw) `
+    -replace 'AssemblyVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyVersion(`"$Version4`")" `
+    -replace 'AssemblyFileVersion\("\d+\.\d+\.\d+\.\d+"\)', "AssemblyFileVersion(`"$Version4`")" | Set-Content $asmInfoPath -NoNewline -Encoding UTF8
+
+$setupCs = Join-Path $RootDir "installer\WonderWrapSetup.cs"
+(Get-Content $setupCs -Raw) -replace 'AppVersion = "\d+\.\d+\.\d+"', "AppVersion = `"$Version`"" | Set-Content $setupCs -NoNewline -Encoding UTF8
 
 $py = Join-Path $env:LOCALAPPDATA "Python\bin\python.exe"
 if (-not (Test-Path $py)) {
@@ -35,7 +60,7 @@ if (-not (Test-Path $csc)) {
     throw "csc.exe not found at $csc"
 }
 
-Write-Host "=== [1/5] Generating Wonder Lime icons & preparing staging directory ===" -ForegroundColor Cyan
+Write-Host "=== [1/5] Generating icons & preparing staging directory ===" -ForegroundColor Cyan
 & $py (Join-Path $RootDir "scripts\generate_icons.py")
 if ($LASTEXITCODE -ne 0) { throw "Icon generation failed." }
 $appIcon = Join-Path $RootDir "installer\wonder_wrap.ico"
@@ -72,7 +97,7 @@ if (-not $ffmpegPath -or -not (Test-Path $ffmpegPath)) {
 }
 Copy-Item -Path $ffmpegPath -Destination (Join-Path $StageDir "daemon\ffmpeg.exe") -Force
 
-Write-Host "=== [4/5] Building Release x64 .NET Native Wonder Wrap Widget ===" -ForegroundColor Cyan
+Write-Host "=== [4/5] Building Release x64 .NET Native WonderWrapWidget ===" -ForegroundColor Cyan
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find "MSBuild\**\Bin\MSBuild.exe" | Select-Object -First 1
 $projPath = Join-Path $RootDir "WonderWrapWidget\WonderWrapWidget.csproj"
@@ -119,23 +144,30 @@ foreach ($meta in @("AppxBlockMap.xml", "AppxSignature.p7x", "[Content_Types].xm
     if (Test-Path $mp) { Remove-Item -Recurse -Force $mp }
 }
 
-Write-Host "=== [5/5] Compiling WonderWrapUninstall.exe & single-file WonderWrap_Installer.exe ===" -ForegroundColor Cyan
-$uacManifest = Join-Path $RootDir "installer\uac.manifest"
-$setupCs     = Join-Path $RootDir "installer\WonderWrapSetup.cs"
-$uninstallCs = Join-Path $RootDir "installer\WonderWrapUninstall.cs"
+Write-Host "=== [5/5] Compiling GUI WonderWrapUninstall.exe & WonderWrap_Installer.exe ===" -ForegroundColor Cyan
+$uacManifest  = Join-Path $RootDir "installer\uac.manifest"
+$uninstallCs  = Join-Path $RootDir "installer\WonderWrapUninstall.cs"
 $uninstallExe = Join-Path $StageDir "WonderWrapUninstall.exe"
 
-& $csc /nologo /optimize+ /target:exe /platform:x64 /win32icon:$appIcon /win32manifest:$uacManifest /out:$uninstallExe $uninstallCs
+& $csc /nologo /optimize+ /target:winexe /platform:x64 `
+    /win32icon:$appIcon `
+    /win32manifest:$uacManifest `
+    /r:System.Windows.Forms.dll `
+    /r:System.Drawing.dll `
+    /out:$uninstallExe `
+    $uninstallCs
 if ($LASTEXITCODE -ne 0) { throw "Failed to compile WonderWrapUninstall.exe" }
 
 Write-Host "      Packing embedded payload..."
 Compress-Archive -Path (Join-Path $StageDir "*") -DestinationPath $PayloadZip -CompressionLevel Optimal
 
-Write-Host "      Embedding payload into single-file WonderWrap_Installer.exe..."
-& $csc /nologo /optimize+ /target:exe /platform:x64 `
+Write-Host "      Embedding payload into GUI WonderWrap_Installer.exe..."
+& $csc /nologo /optimize+ /target:winexe /platform:x64 `
     /win32icon:$appIcon `
     /win32manifest:$uacManifest `
     /r:Microsoft.CSharp.dll `
+    /r:System.Windows.Forms.dll `
+    /r:System.Drawing.dll `
     /r:System.IO.Compression.dll `
     /r:System.IO.Compression.FileSystem.dll `
     /resource:"$PayloadZip,WonderWrapPayload.zip" `
@@ -143,8 +175,7 @@ Write-Host "      Embedding payload into single-file WonderWrap_Installer.exe...
     $setupCs
 if ($LASTEXITCODE -ne 0) { throw "Failed to compile WonderWrap_Installer.exe" }
 
-# Clean old artifacts from dist\ so dist\ contains ONLY WonderWrap_Installer.exe
 Get-ChildItem -Path $DistDir | Where-Object { $_.Name -ne "WonderWrap_Installer.exe" } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
 $mb = [math]::Round((Get-Item $InstallerExe).Length / 1MB, 1)
-Write-Host "`nBuilt single-file installer: $InstallerExe ($mb MB)" -ForegroundColor Green
+Write-Host "`nBuilt GUI installer: $InstallerExe (v$Version, $mb MB)" -ForegroundColor Green

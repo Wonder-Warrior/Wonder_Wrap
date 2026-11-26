@@ -12,17 +12,20 @@ import logging
 import time
 from typing import Callable
 
-log = logging.getLogger("woneder.hotkey")
+log = logging.getLogger("wonder_wrap.hotkey")
 
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
 MOD_NOREPEAT = 0x4000
 VK_CONTROL = 0x11
 VK_SHIFT = 0x10
 VK_MENU = 0x12
+VK_LWIN = 0x5B
+VK_RWIN = 0x5C
 VK_F10 = 0x79
 VK_F12 = 0x7B
 
@@ -67,6 +70,10 @@ def parse_hotkey(spec: str) -> tuple[str, int, int] | None:
             if not (mods & MOD_ALT):
                 mods |= MOD_ALT
                 mod_names.append("Alt")
+        elif u in ("WIN", "WINDOWS", "LWIN", "RWIN", "META"):
+            if not (mods & MOD_WIN):
+                mods |= MOD_WIN
+                mod_names.append("Win")
         elif u == "SHIFT":
             if not (mods & MOD_SHIFT):
                 mods |= MOD_SHIFT
@@ -81,10 +88,12 @@ def parse_hotkey(spec: str) -> tuple[str, int, int] | None:
     if mods == 0 and key_token not in _MOD_FREE_KEYS:
         return None
 
-    # Canonical modifier order: Ctrl -> Alt -> Shift
+    # Canonical modifier order: Ctrl -> Win -> Alt -> Shift
     ordered_mods: list[str] = []
     if mods & MOD_CONTROL:
         ordered_mods.append("Ctrl")
+    if mods & MOD_WIN:
+        ordered_mods.append("Win")
     if mods & MOD_ALT:
         ordered_mods.append("Alt")
     if mods & MOD_SHIFT:
@@ -144,14 +153,33 @@ class GlobalHotkeyLoop:
         on_save: Callable[[], None],
         on_periodic_tick: Callable[[], None] | None = None,
         tick_interval_sec: float = 60.0,
-        hotkey_name: str = "Alt+F10",
+        hotkey_name: str = "Win+Alt+G",
+        on_record: Callable[[], None] | None = None,
+        record_hotkey_name: str = "Win+Alt+R",
+        on_screenshot: Callable[[], None] | None = None,
+        screenshot_hotkey_name: str = "Win+Alt+PrintScreen",
+        on_mic: Callable[[], None] | None = None,
+        mic_hotkey_name: str = "Win+Alt+M",
     ) -> None:
         self._on_save = on_save
         self._on_tick = on_periodic_tick
         self._tick_interval = tick_interval_sec
-        parsed = parse_hotkey(hotkey_name)
-        self._hotkey_name = parsed[0] if parsed else "Alt+F10"
-        self._pending_hotkey: str | None = None
+        self._callbacks: dict[str, Callable[[], None] | None] = {
+            "save": on_save,
+            "record": on_record,
+            "screenshot": on_screenshot,
+            "mic": on_mic,
+        }
+        self._hotkeys: dict[str, str] = {
+            "save": (parse_hotkey(hotkey_name) or ("Win+Alt+G", 0, 0))[0],
+            "record": (parse_hotkey(record_hotkey_name) or ("Win+Alt+R", 0, 0))[0],
+            "screenshot": (parse_hotkey(screenshot_hotkey_name) or ("Win+Alt+PrintScreen", 0, 0))[0],
+            "mic": (parse_hotkey(mic_hotkey_name) or ("Win+Alt+M", 0, 0))[0],
+        }
+        self._hotkey_name = self._hotkeys["save"]
+        self._pending_hotkeys: dict[str, str] | None = None
+        self._reg_ids: dict[int, str] = {}
+        self._ll_bindings: list[tuple[str, str, int, int]] = []
 
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
         self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -196,39 +224,64 @@ class GlobalHotkeyLoop:
         self.hotkey_mode = "uninitialized"
 
     def set_hotkey(self, hotkey_name: str) -> None:
-        parsed = parse_hotkey(hotkey_name)
-        if parsed and parsed[0] != self._hotkey_name:
-            self._pending_hotkey = parsed[0]
+        self.set_hotkeys({"save": hotkey_name})
 
-    def _register_save_hotkey(self, hotkey_save_id: int) -> bool:
-        parsed = parse_hotkey(self._hotkey_name)
-        if parsed is None:
-            canonical, mods, vk = "Alt+F10", (MOD_ALT | MOD_NOREPEAT), VK_F10
-        else:
+    def set_hotkeys(self, updates: dict[str, str]) -> None:
+        merged = dict(self._hotkeys)
+        changed = False
+        for action, spec in updates.items():
+            if action not in merged:
+                continue
+            parsed = parse_hotkey(spec)
+            if parsed and parsed[0] != merged[action]:
+                merged[action] = parsed[0]
+                changed = True
+        if changed:
+            self._pending_hotkeys = merged
+
+    def _register_all_hotkeys(self) -> None:
+        self._reg_ids.clear()
+        self._ll_bindings.clear()
+        modes: list[str] = []
+        action_order = ("save", "record", "screenshot", "mic")
+        for idx, action in enumerate(action_order, start=1):
+            cb = self._callbacks.get(action)
+            if cb is None:
+                continue
+            spec = self._hotkeys[action]
+            parsed = parse_hotkey(spec)
+            if parsed is None:
+                continue
             canonical, mods, vk = parsed
-        self._hotkey_name = canonical
-        reg_ok = bool(self._user32.RegisterHotKey(None, hotkey_save_id, mods, vk))
-        if reg_ok:
-            self.hotkey_mode = f"RegisterHotKey({self._hotkey_name})"
-            log.info("Registered global hotkey: %s (Win32 RegisterHotKey)", self._hotkey_name)
-        else:
-            err = ctypes.get_last_error()
-            if err == ERROR_HOTKEY_ALREADY_REGISTERED:
-                log.warning(
-                    "%s is already registered by another app (e.g., NVIDIA Overlay). "
-                    "Falling back to external WH_KEYBOARD_LL listener.",
-                    self._hotkey_name,
-                )
+            self._hotkeys[action] = canonical
+            if action == "save":
+                self._hotkey_name = canonical
+            reg_ok = bool(self._user32.RegisterHotKey(None, idx, mods, vk))
+            if reg_ok:
+                self._reg_ids[idx] = action
+                modes.append(f"{action}:{canonical}")
+                log.info("Registered %s hotkey: %s (Win32 RegisterHotKey)", action, canonical)
             else:
-                log.warning("RegisterHotKey(%s) returned error %d; falling back to WH_KEYBOARD_LL.", self._hotkey_name, err)
-            self._install_ll_keyboard_fallback(mods, vk)
-        return reg_ok
+                self._ll_bindings.append((action, canonical, mods, vk))
+                modes.append(f"{action}:LL({canonical})")
+                log.info("Registered %s hotkey: %s (WH_KEYBOARD_LL fallback)", action, canonical)
+        if self._ll_bindings:
+            self._install_ll_keyboard_fallback()
+        self.hotkey_mode = ", ".join(modes) if modes else "ipc-only"
+
+    def _unregister_all_hotkeys(self) -> None:
+        for hid in list(self._reg_ids.keys()):
+            self._user32.UnregisterHotKey(None, hid)
+        self._reg_ids.clear()
+        self._ll_bindings.clear()
+        if self._hook_handle:
+            self._user32.UnhookWindowsHookEx(self._hook_handle)
+            self._hook_handle = None
 
     def run(self) -> None:
-        hotkey_save_id = 1
-        hotkey_quit_id = 2
+        hotkey_quit_id = 99
 
-        reg_ok = self._register_save_hotkey(hotkey_save_id)
+        self._register_all_hotkeys()
 
         # Optional secondary exit hotkey: Ctrl+Alt+F12
         quit_ok = bool(
@@ -246,16 +299,11 @@ class GlobalHotkeyLoop:
         try:
             while True:
                 # Apply live hotkey change if requested from settings
-                if self._pending_hotkey is not None:
-                    if reg_ok:
-                        self._user32.UnregisterHotKey(None, hotkey_save_id)
-                        reg_ok = False
-                    if self._hook_handle:
-                        self._user32.UnhookWindowsHookEx(self._hook_handle)
-                        self._hook_handle = None
-                    self._hotkey_name = self._pending_hotkey
-                    self._pending_hotkey = None
-                    reg_ok = self._register_save_hotkey(hotkey_save_id)
+                if self._pending_hotkeys is not None:
+                    self._unregister_all_hotkeys()
+                    self._hotkeys = self._pending_hotkeys
+                    self._pending_hotkeys = None
+                    self._register_all_hotkeys()
 
                 # Sleep efficiently with ~0% CPU until a Windows message or IPC event arrives
                 wait_ms = 500
@@ -273,9 +321,12 @@ class GlobalHotkeyLoop:
                     if msg.message == WM_QUIT:
                         return
                     if msg.message == WM_HOTKEY:
-                        if msg.wParam == hotkey_save_id:
-                            log.info("Hotkey %s triggered!", self._hotkey_name)
-                            self._on_save()
+                        if msg.wParam in self._reg_ids:
+                            action = self._reg_ids[msg.wParam]
+                            cb = self._callbacks.get(action)
+                            log.info("Hotkey %s (%s) triggered!", action, self._hotkeys.get(action))
+                            if cb:
+                                cb()
                         elif msg.wParam == hotkey_quit_id:
                             log.info("Hotkey Ctrl+Alt+F12 triggered — shutting down.")
                             return
@@ -289,42 +340,46 @@ class GlobalHotkeyLoop:
         except KeyboardInterrupt:
             log.info("KeyboardInterrupt received — shutting down.")
         finally:
-            if reg_ok:
-                self._user32.UnregisterHotKey(None, hotkey_save_id)
+            self._unregister_all_hotkeys()
             if quit_ok:
                 self._user32.UnregisterHotKey(None, hotkey_quit_id)
-            if self._hook_handle:
-                self._user32.UnhookWindowsHookEx(self._hook_handle)
-                self._hook_handle = None
             for h in (self._stop_event, self._save_event):
                 if h:
                     self._kernel32.CloseHandle(h)
 
-    def _install_ll_keyboard_fallback(self, req_mods: int = MOD_ALT, target_vk: int = VK_F10) -> None:
-        need_ctrl = bool(req_mods & MOD_CONTROL)
-        need_alt = bool(req_mods & MOD_ALT)
-        need_shift = bool(req_mods & MOD_SHIFT)
+    def _install_ll_keyboard_fallback(self) -> None:
+        bindings = list(self._ll_bindings)
 
         def _cb(nCode: int, wParam: int, lParam: int) -> int:
             if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
                 kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-                if kb.vkCode == target_vk:
+                for action, canonical, req_mods, target_vk in bindings:
+                    if kb.vkCode != target_vk:
+                        continue
+                    need_ctrl = bool(req_mods & MOD_CONTROL)
+                    need_alt = bool(req_mods & MOD_ALT)
+                    need_shift = bool(req_mods & MOD_SHIFT)
+                    need_win = bool(req_mods & MOD_WIN)
                     ctrl_ok = (not need_ctrl) or bool(self._user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
                     alt_ok = (not need_alt) or bool(self._user32.GetAsyncKeyState(VK_MENU) & 0x8000)
                     shift_ok = (not need_shift) or bool(self._user32.GetAsyncKeyState(VK_SHIFT) & 0x8000)
+                    win_ok = (not need_win) or bool(
+                        (self._user32.GetAsyncKeyState(VK_LWIN) & 0x8000)
+                        or (self._user32.GetAsyncKeyState(VK_RWIN) & 0x8000)
+                    )
                     now = time.monotonic()
-                    if ctrl_ok and alt_ok and shift_ok and (now - self._last_hook_fire) > 0.6:
+                    if ctrl_ok and alt_ok and shift_ok and win_ok and (now - self._last_hook_fire) > 0.6:
                         self._last_hook_fire = now
-                        log.info("Hotkey %s triggered (WH_KEYBOARD_LL fallback)!", self._hotkey_name)
-                        self._on_save()
+                        log.info("Hotkey %s (%s) triggered (WH_KEYBOARD_LL fallback)!", action, canonical)
+                        cb = self._callbacks.get(action)
+                        if cb:
+                            cb()
+                        break
             return self._user32.CallNextHookEx(self._hook_handle, nCode, wParam, lParam)
 
         self._hook_cb = HOOKPROC(_cb)
         self._hook_handle = self._user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._hook_cb, None, 0)
-        if self._hook_handle:
-            self.hotkey_mode = f"WH_KEYBOARD_LL({self._hotkey_name})"
-        else:
-            self.hotkey_mode = "ipc-only"
+        if not self._hook_handle:
             log.error("Failed to install WH_KEYBOARD_LL fallback: err=%d", ctypes.get_last_error())
 
 

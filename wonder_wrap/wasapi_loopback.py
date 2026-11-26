@@ -21,7 +21,7 @@ from typing import BinaryIO
 
 from .win32_dxgi import GUID, vtable_call
 
-log = logging.getLogger("woneder.wasapi")
+log = logging.getLogger("wonder_wrap.wasapi")
 
 COINIT_MULTITHREADED = 0x0
 CLSCTX_ALL = 23

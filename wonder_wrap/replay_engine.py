@@ -38,7 +38,7 @@ from .win32_dxgi import (
     save_user_settings,
 )
 
-log = logging.getLogger("woneder.engine")
+log = logging.getLogger("wonder_wrap.engine")
 
 CREATE_NO_WINDOW = 0x08000000
 
@@ -59,7 +59,10 @@ class ReplayConfig:
     output_index: int | None = None
     game_only: bool = True
     capture_cursor: bool = True
-    hotkey: str = "Alt+F10"
+    hotkey: str = "Win+Alt+G"
+    record_hotkey: str = "Win+Alt+R"
+    screenshot_hotkey: str = "Win+Alt+PrintScreen"
+    mic_hotkey: str = "Win+Alt+M"
     alt_tab_grace_sec: float = 10.0
     synthetic_test: bool = False  # Only for headless verification without desktop access
 
@@ -464,6 +467,9 @@ class ReplayEngine:
             "game_only": self.cfg.game_only,
             "capture_cursor": self.cfg.capture_cursor,
             "hotkey": self.cfg.hotkey,
+            "record_hotkey": self.cfg.record_hotkey,
+            "screenshot_hotkey": self.cfg.screenshot_hotkey,
+            "mic_hotkey": self.cfg.mic_hotkey,
             "output_dir": self.cfg.output_dir,
             "encoder": self.encoder.codec,
         }
@@ -507,10 +513,11 @@ class ReplayEngine:
                 if cc != self.cfg.capture_cursor:
                     self.cfg.capture_cursor = cc
                     restart_needed = True
-            if "hotkey" in updates:
-                parsed_hk = parse_hotkey(str(updates["hotkey"]).strip())
-                if parsed_hk is not None:
-                    self.cfg.hotkey = parsed_hk[0]
+            for hk_key in ("hotkey", "record_hotkey", "screenshot_hotkey", "mic_hotkey"):
+                if hk_key in updates:
+                    parsed_hk = parse_hotkey(str(updates[hk_key]).strip())
+                    if parsed_hk is not None:
+                        setattr(self.cfg, hk_key, parsed_hk[0])
             if "game_only" in updates:
                 go = bool(updates["game_only"])
                 if go != self.cfg.game_only:
