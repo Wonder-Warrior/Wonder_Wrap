@@ -1,0 +1,32 @@
+# Build & release artifacts (upload dist/WonderWrap_Installer.exe as a GitHub Release asset)
+build/
+dist/
+*.msix
+*.appx
+*.cer
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+
+# Visual Studio / UWP / MSBuild
+WonderWrapWidget/bin/
+WonderWrapWidget/obj/
+WonderWrapWidget/AppPackages/
+WonderWrapWidget/BundleArtifacts/
+.vs/
+*.user
+*.suo
+
+# Local logs, captures & scratch scripts
+*.log
+*.mp4
+*.ts
+*.m3u8
+replays/
+test_capture.py
+.vscode/

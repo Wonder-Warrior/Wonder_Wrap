@@ -1,0 +1,526 @@
+<Page
+    x:Class="WonderWrapWidget.ReplayWidgetPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedTheme="Dark"
+    Background="#FF181A1F">
+
+    <Page.Resources>
+        <!-- Woneder Lime (#A8FF00) Fluent dark capture tile button -->
+        <Style x:Key="CaptureTileButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="56" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="#FF23262E" />
+            <Setter Property="Foreground" Value="#FFF0F2F5" />
+            <Setter Property="BorderBrush" Value="#FF303540" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="RootBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="RootBorder.Background" Value="#FF2C313B" />
+                                            <Setter Target="RootBorder.BorderBrush" Value="#99A8FF00" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="RootBorder.Background" Value="#FF1E2128" />
+                                            <Setter Target="RootBorder.BorderBrush" Value="#FFA8FF00" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="RootBorder.Background" Value="#FF1D2026" />
+                                            <Setter Target="RootBorder.BorderBrush" Value="#FF272B33" />
+                                            <Setter Target="RootBorder.Opacity" Value="0.40" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Compact pill icon button for Folder & Settings -->
+        <Style x:Key="SmallIconPillButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="#FF22262E" />
+            <Setter Property="BorderBrush" Value="#FF303540" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="PillBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="PillBorder.Background" Value="#FF2C313B" />
+                                            <Setter Target="PillBorder.BorderBrush" Value="#99A8FF00" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="PillBorder.Background" Value="#FF1E2128" />
+                                            <Setter Target="PillBorder.BorderBrush" Value="#FFA8FF00" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="PillBorder.Opacity" Value="0.40" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Flat Capture-style bottom link button -->
+        <Style x:Key="CapturesLinkButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#FFF1F3F5" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,5,8,5" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="LinkBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="LinkBorder.Background" Value="#FF262A33" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="LinkBorder.Background" Value="#FF1E2128" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="LinkBorder.Opacity" Value="0.42" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Padding="14,10,14,10">
+            <!-- Row 0: Four Capture-style rounded square icon tiles -->
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Tile 1: Screenshot -->
+                <Button
+                    x:Name="ScreenshotButton"
+                    Grid.Column="0"
+                    Style="{StaticResource CaptureTileButtonStyle}"
+                    Click="ScreenshotButton_Click"
+                    ToolTipService.ToolTip="Take screenshot"
+                    IsEnabled="False">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        Glyph="&#xEB9F;"
+                        FontSize="18"
+                        Foreground="#FFE8EAED" />
+                </Button>
+
+                <!-- Tile 2: Instant Replay (Save last 30s — Woneder Lime accent when gaming) -->
+                <Button
+                    x:Name="SaveButton"
+                    Grid.Column="1"
+                    Style="{StaticResource CaptureTileButtonStyle}"
+                    Click="SaveButton_Click"
+                    ToolTipService.ToolTip="Instant Replay activates while gaming"
+                    IsEnabled="False">
+                    <FontIcon
+                        x:Name="SaveIcon"
+                        FontFamily="Segoe MDL2 Assets"
+                        Glyph="&#xE81C;"
+                        FontSize="18"
+                        Foreground="#FFA8FF00" />
+                </Button>
+
+                <!-- Tile 3: Start / Stop manual recording (circle -> red stop square) -->
+                <Button
+                    x:Name="RecordButton"
+                    Grid.Column="2"
+                    Style="{StaticResource CaptureTileButtonStyle}"
+                    Click="RecordButton_Click"
+                    ToolTipService.ToolTip="Start recording"
+                    IsEnabled="False">
+                    <Grid>
+                        <Ellipse
+                            x:Name="RecordDot"
+                            Width="14"
+                            Height="14"
+                            Fill="#FFE8EAED" />
+                        <Rectangle
+                            x:Name="StopSquare"
+                            Width="13"
+                            Height="13"
+                            RadiusX="2"
+                            RadiusY="2"
+                            Fill="#FFEF4444"
+                            Visibility="Collapsed" />
+                    </Grid>
+                </Button>
+
+                <!-- Tile 4: Toggle Microphone On / Off -->
+                <Button
+                    x:Name="MuteButton"
+                    Grid.Column="3"
+                    Style="{StaticResource CaptureTileButtonStyle}"
+                    Click="MuteButton_Click"
+                    ToolTipService.ToolTip="Turn mic on / off while recording"
+                    IsEnabled="False">
+                    <FontIcon
+                        x:Name="MuteIcon"
+                        FontFamily="Segoe MDL2 Assets"
+                        Glyph="&#xE720;"
+                        FontSize="18"
+                        Foreground="#FFE8EAED" />
+                </Button>
+            </Grid>
+
+            <!-- Divider -->
+            <Border Height="1" Background="#FF2B303A" Margin="0,12,0,9" />
+
+            <!-- Bottom Row: "See my captures" + Folder Icon + Settings Icon + Status Pill -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button
+                    x:Name="OpenCapturesButton"
+                    Grid.Column="0"
+                    Style="{StaticResource CapturesLinkButtonStyle}"
+                    Click="OpenCapturesButton_Click"
+                    ToolTipService.ToolTip="Open captures folder"
+                    IsEnabled="False">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            FontFamily="Segoe MDL2 Assets"
+                            Glyph="&#xE8B2;"
+                            FontSize="15"
+                            Foreground="#FFA8FF00"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            Text="See my captures"
+                            FontSize="13"
+                            Foreground="#FFF1F3F5"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Settings gear pill (cleanly replaces redundant folder icon) -->
+                <Button
+                    x:Name="SettingsButton"
+                    Grid.Column="1"
+                    Style="{StaticResource SmallIconPillButtonStyle}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Margin="0,0,6,0"
+                    Click="SettingsButton_Click"
+                    ToolTipService.ToolTip="Settings"
+                    IsEnabled="False">
+                    <FontIcon
+                        x:Name="SettingsIcon"
+                        FontFamily="Segoe MDL2 Assets"
+                        Glyph="&#xE713;"
+                        FontSize="12.5"
+                        Foreground="#FFD5DAE2" />
+                </Button>
+
+                <!-- Live status pill -->
+                <Border
+                    Grid.Column="2"
+                    Background="#FF22262E"
+                    BorderBrush="#FF303540"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="7,3,7,3"
+                    VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="5">
+                        <Ellipse
+                            x:Name="StatusDot"
+                            Width="7"
+                            Height="7"
+                            Fill="#FF6B7280"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            x:Name="StatusMetaText"
+                            Text="Offline"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="#FF9CA3AF"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Collapsible Woneder Lime Settings Drawer -->
+            <Border
+                x:Name="SettingsPanel"
+                Visibility="Collapsed"
+                Background="#FF1E2128"
+                BorderBrush="#FF2E333E"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10,9,10,9"
+                Margin="0,10,0,0">
+                <StackPanel Spacing="8">
+                    <!-- Header -->
+                    <Grid>
+                        <TextBlock
+                            Text="SETTINGS"
+                            FontSize="10.5"
+                            FontWeight="Bold"
+                            CharacterSpacing="80"
+                            Foreground="#FFA8FF00"
+                            VerticalAlignment="Center" />
+                        <TextBlock
+                            x:Name="EncoderBadgeText"
+                            Text="NVENC"
+                            FontSize="10"
+                            Foreground="#FF9CA3AF"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Row: Buffer Length & FPS -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="3">
+                            <TextBlock Text="Replay Length" FontSize="11" Foreground="#FF9CA3AF" />
+                            <ComboBox
+                                x:Name="BufferCombo"
+                                HorizontalAlignment="Stretch"
+                                FontSize="11.5"
+                                SelectionChanged="SettingsControl_Changed">
+                                <ComboBoxItem Content="5 sec" Tag="5" />
+                                <ComboBoxItem Content="10 sec" Tag="10" />
+                                <ComboBoxItem Content="15 sec" Tag="15" />
+                                <ComboBoxItem Content="30 sec" Tag="30" />
+                                <ComboBoxItem Content="45 sec" Tag="45" />
+                                <ComboBoxItem Content="1 min" Tag="60" />
+                                <ComboBoxItem Content="90 sec" Tag="90" />
+                                <ComboBoxItem Content="2 min" Tag="120" />
+                                <ComboBoxItem Content="3 min" Tag="180" />
+                                <ComboBoxItem Content="5 min" Tag="300" />
+                                <ComboBoxItem Content="10 min" Tag="600" />
+                                <ComboBoxItem Content="15 min" Tag="900" />
+                                <ComboBoxItem Content="20 min" Tag="1200" />
+                                <ComboBoxItem Content="30 min" Tag="1800" />
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="Frame Rate" FontSize="11" Foreground="#FF9CA3AF" />
+                            <ComboBox
+                                x:Name="FpsCombo"
+                                HorizontalAlignment="Stretch"
+                                FontSize="11.5"
+                                SelectionChanged="SettingsControl_Changed">
+                                <ComboBoxItem Content="30 fps" Tag="30" />
+                                <ComboBoxItem Content="60 fps" Tag="60" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Row: Video Bitrate & Audio Bitrate -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="3">
+                            <TextBlock Text="Video Bitrate" FontSize="11" Foreground="#FF9CA3AF" />
+                            <ComboBox
+                                x:Name="VideoBitrateCombo"
+                                HorizontalAlignment="Stretch"
+                                FontSize="11.5"
+                                SelectionChanged="SettingsControl_Changed">
+                                <ComboBoxItem Content="10 Mbps" Tag="10M" />
+                                <ComboBoxItem Content="15 Mbps" Tag="15M" />
+                                <ComboBoxItem Content="18 Mbps" Tag="18M" />
+                                <ComboBoxItem Content="25 Mbps" Tag="25M" />
+                                <ComboBoxItem Content="35 Mbps" Tag="35M" />
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Text="Audio Bitrate" FontSize="11" Foreground="#FF9CA3AF" />
+                            <ComboBox
+                                x:Name="AudioBitrateCombo"
+                                HorizontalAlignment="Stretch"
+                                FontSize="11.5"
+                                SelectionChanged="SettingsControl_Changed">
+                                <ComboBoxItem Content="128 kbps" Tag="128k" />
+                                <ComboBoxItem Content="192 kbps" Tag="192k" />
+                                <ComboBoxItem Content="256 kbps" Tag="256k" />
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Row: Save Hotkey -->
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="Save Replay Hotkey" FontSize="11" Foreground="#FF9CA3AF" />
+                        <ComboBox
+                            x:Name="HotkeyCombo"
+                            HorizontalAlignment="Stretch"
+                            FontSize="11.5"
+                            SelectionChanged="SettingsControl_Changed">
+                            <ComboBoxItem Content="Alt + F10" Tag="Alt+F10" />
+                            <ComboBoxItem Content="Alt + F9" Tag="Alt+F9" />
+                            <ComboBoxItem Content="Alt + F8" Tag="Alt+F8" />
+                            <ComboBoxItem Content="Ctrl + Shift + S" Tag="Ctrl+Shift+S" />
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Row: Toggles (Game-Only & Show Cursor) -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox
+                            x:Name="GameOnlyCheck"
+                            Grid.Column="0"
+                            Content="Game-only"
+                            FontSize="11.5"
+                            Checked="SettingsControl_Changed"
+                            Unchecked="SettingsControl_Changed" />
+
+                        <CheckBox
+                            x:Name="CursorCheck"
+                            Grid.Column="1"
+                            Content="Show cursor"
+                            FontSize="11.5"
+                            Checked="SettingsControl_Changed"
+                            Unchecked="SettingsControl_Changed" />
+                    </Grid>
+
+                    <!-- Row: Active detected game + 1-click "Not a game" ignore button -->
+                    <Grid x:Name="ActiveGameRow" Visibility="Collapsed" ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="ActiveGameText"
+                            Grid.Column="0"
+                            Text=""
+                            FontSize="10.5"
+                            Foreground="#FFD5DAE2"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center" />
+                        <Button
+                            Grid.Column="1"
+                            Content="Not a game"
+                            FontSize="10.5"
+                            Padding="7,2,7,2"
+                            CornerRadius="5"
+                            Background="#FF282C36"
+                            Foreground="#FFF87171"
+                            Click="IgnoreGameButton_Click" />
+                    </Grid>
+
+                    <!-- Row: Capture folder path + Browse -->
+                    <Grid ColumnSpacing="6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="FolderPathText"
+                            Grid.Column="0"
+                            Text="Videos\Replays"
+                            FontSize="10.5"
+                            Foreground="#FF9CA3AF"
+                            TextTrimming="CharacterEllipsis"
+                            VerticalAlignment="Center" />
+                        <Button
+                            Grid.Column="1"
+                            Content="Browse"
+                            FontSize="11"
+                            Padding="8,3,8,3"
+                            CornerRadius="5"
+                            Background="#FF282C36"
+                            Foreground="#FFA8FF00"
+                            Click="ChangeFolderButton_Click" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
