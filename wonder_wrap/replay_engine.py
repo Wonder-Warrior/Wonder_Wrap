@@ -162,6 +162,17 @@ class ReplayEngine:
             vf = "format=nv12,hwupload" if use_d3d11_nvenc else "format=nv12"
             return vsrc, vf
 
+        is_flipped = self._get_display_orientation() == 2
+        if use_d3d11_nvenc and not is_flipped:
+            vsrc = (
+                f"ddagrab=output_idx={self.display.output_index}"
+                f":framerate={eff_fps}"
+                f":draw_mouse={cursor_flag}"
+                f":output_fmt=nv12"
+                f":allow_fallback=1"
+            )
+            return vsrc, "null"
+
         vsrc = (
             f"ddagrab=output_idx={self.display.output_index}"
             f":framerate={eff_fps}"
@@ -170,8 +181,24 @@ class ReplayEngine:
             f":allow_fallback=1"
             f",hwdownload,format=bgra"
         )
-        vf = "format=nv12,hwupload" if use_d3d11_nvenc else "format=nv12"
+        flip_prefix = "hflip,vflip," if is_flipped else ""
+        vf = f"{flip_prefix}format=nv12,hwupload" if use_d3d11_nvenc else f"{flip_prefix}format=nv12"
         return vsrc, vf
+
+    @staticmethod
+    def _get_display_orientation() -> int:
+        """Return Windows DMDO_* orientation (0=0°, 1=90°, 2=180° flipped, 3=270°)."""
+        try:
+            import ctypes
+            dm = (ctypes.c_ubyte * 220)()
+            # dmSize = 220 at offset 68 (WORD)
+            ctypes.c_uint16.from_buffer(dm, 68).value = 220
+            if ctypes.windll.user32.EnumDisplaySettingsW(None, -1, ctypes.byref(dm)):
+                # dmDisplayOrientation (DWORD) is at offset 84 in DEVMODEW
+                return int(ctypes.c_uint32.from_buffer(dm, 84).value)
+        except Exception:
+            pass
+        return 0
 
     def _build_video_encoder_args(self, gop: int, force_keyframes: bool) -> list[str]:
         """Build optimal H.264 encoder flags for NVIDIA, AMD, Intel, or CPU fallback."""
@@ -345,11 +372,7 @@ class ReplayEngine:
             "warning",
             "-y",
             "-threads",
-            "1",
-            "-filter_threads",
-            "1",
-            "-filter_complex_threads",
-            "1",
+            "2",
         ]
 
         if use_d3d11_nvenc:
