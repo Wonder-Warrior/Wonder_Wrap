@@ -22,6 +22,7 @@ import threading
 import time
 
 from .game_detector import GameDetector, GameWindowInfo
+from .hotkey import parse_hotkey
 from .wasapi_loopback import AudioFormat, WasapiLoopbackStreamer, probe_default_loopback_format
 from .win32_dxgi import (
     DisplayTarget,
@@ -507,9 +508,9 @@ class ReplayEngine:
                     self.cfg.capture_cursor = cc
                     restart_needed = True
             if "hotkey" in updates:
-                hk = str(updates["hotkey"]).strip()
-                if hk in ("Alt+F10", "Alt+F9", "Alt+F8", "Ctrl+Shift+S"):
-                    self.cfg.hotkey = hk
+                parsed_hk = parse_hotkey(str(updates["hotkey"]).strip())
+                if parsed_hk is not None:
+                    self.cfg.hotkey = parsed_hk[0]
             if "game_only" in updates:
                 go = bool(updates["game_only"])
                 if go != self.cfg.game_only:

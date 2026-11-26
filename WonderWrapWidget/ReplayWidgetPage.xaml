@@ -32,14 +32,14 @@
                                     <VisualState x:Name="Normal" />
                                     <VisualState x:Name="PointerOver">
                                         <VisualState.Setters>
-                                            <Setter Target="RootBorder.Background" Value="#FF2C313B" />
-                                            <Setter Target="RootBorder.BorderBrush" Value="#99A8FF00" />
+                                            <Setter Target="RootBorder.Background" Value="#FF2E323C" />
+                                            <Setter Target="RootBorder.BorderBrush" Value="#FF484E5C" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
                                         <VisualState.Setters>
                                             <Setter Target="RootBorder.Background" Value="#FF1E2128" />
-                                            <Setter Target="RootBorder.BorderBrush" Value="#FFA8FF00" />
+                                            <Setter Target="RootBorder.BorderBrush" Value="#FF5C6374" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Disabled">
@@ -85,14 +85,14 @@
                                     <VisualState x:Name="Normal" />
                                     <VisualState x:Name="PointerOver">
                                         <VisualState.Setters>
-                                            <Setter Target="PillBorder.Background" Value="#FF2C313B" />
-                                            <Setter Target="PillBorder.BorderBrush" Value="#99A8FF00" />
+                                            <Setter Target="PillBorder.Background" Value="#FF2E323C" />
+                                            <Setter Target="PillBorder.BorderBrush" Value="#FF484E5C" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
                                         <VisualState.Setters>
                                             <Setter Target="PillBorder.Background" Value="#FF1E2128" />
-                                            <Setter Target="PillBorder.BorderBrush" Value="#FFA8FF00" />
+                                            <Setter Target="PillBorder.BorderBrush" Value="#FF5C6374" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Disabled">
@@ -184,7 +184,7 @@
                         Foreground="#FFE8EAED" />
                 </Button>
 
-                <!-- Tile 2: Instant Replay (Save last 30s — Woneder Lime accent when gaming) -->
+                <!-- Tile 2: Instant Replay (native Captures look) -->
                 <Button
                     x:Name="SaveButton"
                     Grid.Column="1"
@@ -197,7 +197,7 @@
                         FontFamily="Segoe MDL2 Assets"
                         Glyph="&#xE81C;"
                         FontSize="18"
-                        Foreground="#FFA8FF00" />
+                        Foreground="#FFE8EAED" />
                 </Button>
 
                 <!-- Tile 3: Start / Stop manual recording (circle -> red stop square) -->
@@ -265,7 +265,7 @@
                             FontFamily="Segoe MDL2 Assets"
                             Glyph="&#xE8B2;"
                             FontSize="15"
-                            Foreground="#FFA8FF00"
+                            Foreground="#FFE8EAED"
                             VerticalAlignment="Center" />
                         <TextBlock
                             Text="See my captures"
@@ -322,12 +322,12 @@
                 </Border>
             </Grid>
 
-            <!-- Collapsible Woneder Lime Settings Drawer -->
+            <!-- Collapsible Wonder Wrap Settings Drawer (branded only when open) -->
             <Border
                 x:Name="SettingsPanel"
                 Visibility="Collapsed"
                 Background="#FF1E2128"
-                BorderBrush="#FF2E333E"
+                BorderBrush="#66A8FF00"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="10,9,10,9"
@@ -336,7 +336,7 @@
                     <!-- Header -->
                     <Grid>
                         <TextBlock
-                            Text="SETTINGS"
+                            Text="WONDER WRAP · SETTINGS"
                             FontSize="10.5"
                             FontWeight="Bold"
                             CharacterSpacing="80"
@@ -419,19 +419,16 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Row: Save Hotkey -->
+                    <!-- Row: Save Hotkey (click & press any key combo) -->
                     <StackPanel Spacing="3">
-                        <TextBlock Text="Save Replay Hotkey" FontSize="11" Foreground="#FF9CA3AF" />
-                        <ComboBox
-                            x:Name="HotkeyCombo"
-                            HorizontalAlignment="Stretch"
+                        <TextBlock Text="Save Replay Hotkey (click &amp; press keys)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                        <TextBox
+                            x:Name="HotkeyInput"
+                            IsReadOnly="True"
+                            PlaceholderText="e.g. Alt+F10, Ctrl+Shift+S, F9"
                             FontSize="11.5"
-                            SelectionChanged="SettingsControl_Changed">
-                            <ComboBoxItem Content="Alt + F10" Tag="Alt+F10" />
-                            <ComboBoxItem Content="Alt + F9" Tag="Alt+F9" />
-                            <ComboBoxItem Content="Alt + F8" Tag="Alt+F8" />
-                            <ComboBoxItem Content="Ctrl + Shift + S" Tag="Ctrl+Shift+S" />
-                        </ComboBox>
+                            ToolTipService.ToolTip="Click here and press any modifier + key (e.g. Alt+F10) or F1-F12"
+                            PreviewKeyDown="HotkeyInput_PreviewKeyDown" />
                     </StackPanel>
 
                     <!-- Row: Toggles (Game-Only & Show Cursor) -->

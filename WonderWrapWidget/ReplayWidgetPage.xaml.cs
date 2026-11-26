@@ -6,6 +6,7 @@ using Windows.Data.Json;
 using Windows.Foundation;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -121,8 +122,9 @@ namespace WonderWrapWidget
         {
             _feedbackTimer.Stop();
             _showingFeedback = true;
-            StatusDot.Fill = isError ? ErrorBrush : WonederLimeBrush;
-            StatusMetaText.Foreground = isError ? ErrorBrush : WonederLimeBrush;
+            var okBrush = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
+            StatusDot.Fill = isError ? ErrorBrush : okBrush;
+            StatusMetaText.Foreground = isError ? ErrorBrush : okBrush;
             StatusMetaText.Text = message;
             _feedbackTimer.Start();
         }
@@ -151,8 +153,8 @@ namespace WonderWrapWidget
             }
             else if (_mode == "replay")
             {
-                StatusDot.Fill = WonederLimeBrush;
-                StatusMetaText.Foreground = WonederLimeBrush;
+                StatusDot.Fill = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
+                StatusMetaText.Foreground = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
                 StatusMetaText.Text = string.Format("{0:F0} MB", _lastRamMb);
             }
             else
@@ -222,8 +224,8 @@ namespace WonderWrapWidget
             bool isRecording = mode == "recording";
             bool isReplay = mode == "replay";
 
-            SaveIcon.Foreground = isReplay ? WonederLimeBrush : SubtleGrayBrush;
-            SaveButton.BorderBrush = isReplay ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonederLimeBrush : IconActiveBrush) : SubtleGrayBrush;
+            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonederLimeBorderBrush : DefaultTileBorderBrush;
 
             RecordDot.Visibility = isRecording ? Visibility.Collapsed : Visibility.Visible;
             RecordDot.Fill = IconActiveBrush;
@@ -353,7 +355,7 @@ namespace WonderWrapWidget
                     if (s.ContainsKey("hotkey"))
                     {
                         _hotkey = s["hotkey"].GetString();
-                        SelectComboByTag(HotkeyCombo, _hotkey);
+                        HotkeyInput.Text = _hotkey;
                     }
                     if (s.ContainsKey("game_only")) GameOnlyCheck.IsChecked = s["game_only"].GetBoolean();
                     if (s.ContainsKey("capture_cursor")) CursorCheck.IsChecked = s["capture_cursor"].GetBoolean();
@@ -374,6 +376,10 @@ namespace WonderWrapWidget
             SettingsPanel.Visibility = _settingsOpen ? Visibility.Visible : Visibility.Collapsed;
             SettingsIcon.Foreground = _settingsOpen ? WonederLimeBrush : IconActiveBrush;
             SettingsButton.BorderBrush = _settingsOpen ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            bool isReplay = _mode == "replay";
+            SaveIcon.Foreground = isReplay ? (_settingsOpen ? WonederLimeBrush : IconActiveBrush) : SubtleGrayBrush;
+            SaveButton.BorderBrush = (isReplay && _settingsOpen) ? WonederLimeBorderBrush : DefaultTileBorderBrush;
+            UpdateMetaLabel();
 
             if (_settingsOpen)
             {
@@ -388,6 +394,73 @@ namespace WonderWrapWidget
                 }
                 catch { }
             }
+        }
+
+        private static string MapVirtualKeyToToken(VirtualKey key)
+        {
+            if (key >= VirtualKey.F1 && key <= VirtualKey.F12)
+                return "F" + ((int)key - (int)VirtualKey.F1 + 1);
+            if (key >= VirtualKey.A && key <= VirtualKey.Z)
+                return key.ToString();
+            if (key >= VirtualKey.Number0 && key <= VirtualKey.Number9)
+                return ((int)key - (int)VirtualKey.Number0).ToString();
+            if (key == VirtualKey.Insert) return "Insert";
+            if (key == VirtualKey.Home) return "Home";
+            if (key == VirtualKey.End) return "End";
+            if (key == VirtualKey.PageUp) return "PageUp";
+            if (key == VirtualKey.PageDown) return "PageDown";
+            if (key == VirtualKey.Snapshot) return "PrintScreen";
+            if (key == VirtualKey.Pause) return "Pause";
+            return null;
+        }
+
+        private static bool IsModFreeKey(VirtualKey key)
+        {
+            return (key >= VirtualKey.F1 && key <= VirtualKey.F12) ||
+                   key == VirtualKey.Insert ||
+                   key == VirtualKey.Snapshot ||
+                   key == VirtualKey.Pause;
+        }
+
+        private async void HotkeyInput_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var key = e.Key;
+            if (key == VirtualKey.Control || key == VirtualKey.LeftControl || key == VirtualKey.RightControl ||
+                key == VirtualKey.Menu || key == VirtualKey.LeftMenu || key == VirtualKey.RightMenu ||
+                key == VirtualKey.Shift || key == VirtualKey.LeftShift || key == VirtualKey.RightShift ||
+                key == VirtualKey.LeftWindows || key == VirtualKey.RightWindows)
+            {
+                return;
+            }
+
+            string token = MapVirtualKeyToToken(key);
+            if (string.IsNullOrEmpty(token))
+            {
+                ShowFeedback("Invalid key", isError: true);
+                return;
+            }
+
+            var win = Window.Current.CoreWindow;
+            bool ctrl = (win.GetKeyState(VirtualKey.Control) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+            bool alt = (win.GetKeyState(VirtualKey.Menu) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+            bool shift = (win.GetKeyState(VirtualKey.Shift) & CoreVirtualKeyStates.Down) == CoreVirtualKeyStates.Down;
+
+            if (!ctrl && !alt && !shift && !IsModFreeKey(key))
+            {
+                ShowFeedback("Add Ctrl/Alt/Shift", isError: true);
+                return;
+            }
+
+            string combo = string.Empty;
+            if (ctrl) combo += "Ctrl+";
+            if (alt) combo += "Alt+";
+            if (shift) combo += "Shift+";
+            combo += token;
+
+            _hotkey = combo;
+            HotkeyInput.Text = combo;
+            await ApplySettingsFromUiAsync();
         }
 
         private async void NumericInput_LostFocus(object sender, RoutedEventArgs e)
@@ -443,10 +516,9 @@ namespace WonderWrapWidget
             payload["fps"] = JsonValue.CreateNumberValue(clampedFps);
             payload["video_bitrate"] = JsonValue.CreateStringValue(clampedVbr + "M");
             payload["audio_bitrate"] = JsonValue.CreateStringValue(clampedAbr + "k");
-            if (HotkeyCombo.SelectedItem is ComboBoxItem hItem && hItem.Tag is string hk)
+            if (!string.IsNullOrWhiteSpace(_hotkey))
             {
-                _hotkey = hk;
-                payload["hotkey"] = JsonValue.CreateStringValue(hk);
+                payload["hotkey"] = JsonValue.CreateStringValue(_hotkey);
             }
             payload["game_only"] = JsonValue.CreateBooleanValue(GameOnlyCheck.IsChecked == true);
             payload["capture_cursor"] = JsonValue.CreateBooleanValue(CursorCheck.IsChecked == true);

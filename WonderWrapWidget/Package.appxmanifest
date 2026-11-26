@@ -14,7 +14,7 @@
   <mp:PhoneIdentity PhoneProductId="9a6e4c18-3b54-4f2d-a8e1-7c90d5b2416f" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
 
   <Properties>
-    <DisplayName>Wonder Wrap</DisplayName>
+    <DisplayName>Captures</DisplayName>
     <PublisherDisplayName>Wonder</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -32,7 +32,7 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="WonderWrapWidget.App">
       <uap:VisualElements
-        DisplayName="Wonder Wrap"
+        DisplayName="Captures"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Description="Ultra-low-RAM Instant Replay and Capture widget for Xbox Game Bar"
@@ -46,7 +46,7 @@
         <uap3:Extension Category="windows.appExtension">
           <uap3:AppExtension Name="microsoft.gameBarUIExtension"
                              Id="WonderWrapWidget"
-                             DisplayName="Wonder Wrap"
+                             DisplayName="Captures"
                              Description="Ultra-low-RAM Instant Replay, screenshots, and manual recording"
                              PublicFolder="GameBar">
             <uap3:Properties>

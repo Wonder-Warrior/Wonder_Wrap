@@ -20,23 +20,93 @@ MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_NOREPEAT = 0x4000
-VK_F8 = 0x77
-VK_F9 = 0x78
+VK_CONTROL = 0x11
+VK_SHIFT = 0x10
+VK_MENU = 0x12
 VK_F10 = 0x79
 VK_F12 = 0x7B
-VK_S = 0x53
 
-HOTKEY_PRESETS: dict[str, tuple[int, int]] = {
-    "Alt+F10": (MOD_ALT | MOD_NOREPEAT, VK_F10),
-    "Alt+F9": (MOD_ALT | MOD_NOREPEAT, VK_F9),
-    "Alt+F8": (MOD_ALT | MOD_NOREPEAT, VK_F8),
-    "Ctrl+Shift+S": (MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_S),
+_KEY_VK_MAP: dict[str, int] = {
+    **{f"F{i}": 0x6F + i for i in range(1, 13)},
+    **{chr(c): c for c in range(ord("A"), ord("Z") + 1)},
+    **{str(d): 0x30 + d for d in range(10)},
+    "INSERT": 0x2D,
+    "HOME": 0x24,
+    "END": 0x23,
+    "PAGEUP": 0x21,
+    "PAGEDOWN": 0x22,
+    "PRINTSCREEN": 0x2C,
+    "PAUSE": 0x13,
 }
+
+_MOD_FREE_KEYS = {f"F{i}" for i in range(1, 13)} | {"INSERT", "PRINTSCREEN", "PAUSE"}
+
+
+def parse_hotkey(spec: str) -> tuple[str, int, int] | None:
+    """
+    Parse & validate a user-entered hotkey string (e.g. 'Alt+F10', 'Ctrl+Shift+S', 'F9').
+    Constraint: requires at least one modifier (Ctrl/Alt/Shift) OR a function/special key.
+    Returns (canonical_name, win32_mods_with_norepeat, vk_code) or None if invalid.
+    """
+    if not spec or not isinstance(spec, str):
+        return None
+    parts = [p.strip() for p in spec.replace(" ", "").split("+") if p.strip()]
+    if not parts or len(parts) > 4:
+        return None
+
+    mods = 0
+    mod_names: list[str] = []
+    key_token = ""
+    for p in parts:
+        u = p.upper()
+        if u in ("CTRL", "CONTROL"):
+            if not (mods & MOD_CONTROL):
+                mods |= MOD_CONTROL
+                mod_names.append("Ctrl")
+        elif u in ("ALT", "MENU"):
+            if not (mods & MOD_ALT):
+                mods |= MOD_ALT
+                mod_names.append("Alt")
+        elif u == "SHIFT":
+            if not (mods & MOD_SHIFT):
+                mods |= MOD_SHIFT
+                mod_names.append("Shift")
+        else:
+            if key_token:
+                return None  # more than one non-modifier key
+            key_token = u
+
+    if not key_token or key_token not in _KEY_VK_MAP:
+        return None
+    if mods == 0 and key_token not in _MOD_FREE_KEYS:
+        return None
+
+    # Canonical modifier order: Ctrl -> Alt -> Shift
+    ordered_mods: list[str] = []
+    if mods & MOD_CONTROL:
+        ordered_mods.append("Ctrl")
+    if mods & MOD_ALT:
+        ordered_mods.append("Alt")
+    if mods & MOD_SHIFT:
+        ordered_mods.append("Shift")
+
+    pretty_key = {
+        "INSERT": "Insert",
+        "HOME": "Home",
+        "END": "End",
+        "PAGEUP": "PageUp",
+        "PAGEDOWN": "PageDown",
+        "PRINTSCREEN": "PrintScreen",
+        "PAUSE": "Pause",
+    }.get(key_token, key_token)
+
+    canonical = "+".join(ordered_mods + [pretty_key])
+    return canonical, (mods | MOD_NOREPEAT), _KEY_VK_MAP[key_token]
+
 
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
-VK_MENU = 0x12
 ERROR_HOTKEY_ALREADY_REGISTERED = 1409
 
 QS_ALLINPUT = 0x04FF
@@ -79,7 +149,8 @@ class GlobalHotkeyLoop:
         self._on_save = on_save
         self._on_tick = on_periodic_tick
         self._tick_interval = tick_interval_sec
-        self._hotkey_name = hotkey_name if hotkey_name in HOTKEY_PRESETS else "Alt+F10"
+        parsed = parse_hotkey(hotkey_name)
+        self._hotkey_name = parsed[0] if parsed else "Alt+F10"
         self._pending_hotkey: str | None = None
 
         self._user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -125,11 +196,17 @@ class GlobalHotkeyLoop:
         self.hotkey_mode = "uninitialized"
 
     def set_hotkey(self, hotkey_name: str) -> None:
-        if hotkey_name in HOTKEY_PRESETS and hotkey_name != self._hotkey_name:
-            self._pending_hotkey = hotkey_name
+        parsed = parse_hotkey(hotkey_name)
+        if parsed and parsed[0] != self._hotkey_name:
+            self._pending_hotkey = parsed[0]
 
     def _register_save_hotkey(self, hotkey_save_id: int) -> bool:
-        mods, vk = HOTKEY_PRESETS.get(self._hotkey_name, (MOD_ALT | MOD_NOREPEAT, VK_F10))
+        parsed = parse_hotkey(self._hotkey_name)
+        if parsed is None:
+            canonical, mods, vk = "Alt+F10", (MOD_ALT | MOD_NOREPEAT), VK_F10
+        else:
+            canonical, mods, vk = parsed
+        self._hotkey_name = canonical
         reg_ok = bool(self._user32.RegisterHotKey(None, hotkey_save_id, mods, vk))
         if reg_ok:
             self.hotkey_mode = f"RegisterHotKey({self._hotkey_name})"
@@ -144,7 +221,7 @@ class GlobalHotkeyLoop:
                 )
             else:
                 log.warning("RegisterHotKey(%s) returned error %d; falling back to WH_KEYBOARD_LL.", self._hotkey_name, err)
-            self._install_ll_keyboard_fallback(vk)
+            self._install_ll_keyboard_fallback(mods, vk)
         return reg_ok
 
     def run(self) -> None:
@@ -223,14 +300,20 @@ class GlobalHotkeyLoop:
                 if h:
                     self._kernel32.CloseHandle(h)
 
-    def _install_ll_keyboard_fallback(self, target_vk: int = VK_F10) -> None:
+    def _install_ll_keyboard_fallback(self, req_mods: int = MOD_ALT, target_vk: int = VK_F10) -> None:
+        need_ctrl = bool(req_mods & MOD_CONTROL)
+        need_alt = bool(req_mods & MOD_ALT)
+        need_shift = bool(req_mods & MOD_SHIFT)
+
         def _cb(nCode: int, wParam: int, lParam: int) -> int:
             if nCode >= 0 and wParam in (WM_KEYDOWN, WM_SYSKEYDOWN):
                 kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
                 if kb.vkCode == target_vk:
-                    alt_down = bool(self._user32.GetAsyncKeyState(VK_MENU) & 0x8000)
+                    ctrl_ok = (not need_ctrl) or bool(self._user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
+                    alt_ok = (not need_alt) or bool(self._user32.GetAsyncKeyState(VK_MENU) & 0x8000)
+                    shift_ok = (not need_shift) or bool(self._user32.GetAsyncKeyState(VK_SHIFT) & 0x8000)
                     now = time.monotonic()
-                    if alt_down and (now - self._last_hook_fire) > 0.6:
+                    if ctrl_ok and alt_ok and shift_ok and (now - self._last_hook_fire) > 0.6:
                         self._last_hook_fire = now
                         log.info("Hotkey %s triggered (WH_KEYBOARD_LL fallback)!", self._hotkey_name)
                         self._on_save()
