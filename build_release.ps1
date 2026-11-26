@@ -103,13 +103,19 @@ $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild 
 $projPath = Join-Path $RootDir "WonderWrapWidget\WonderWrapWidget.csproj"
 $pkgOutDir = Join-Path $RootDir "WonderWrapWidget\AppPackages"
 
-& $msbuild $projPath /t:Restore /p:Configuration=Release /p:Platform=x64 /nologo /v:minimal
+$uapSdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Platforms\UAP" -Directory |
+    Sort-Object Name -Descending |
+    Select-Object -First 1 -ExpandProperty Name
+if (-not $uapSdk) { throw "No UAP Windows SDK found under Windows Kits\10\Platforms\UAP" }
+
+& $msbuild $projPath /t:Restore /p:Configuration=Release /p:Platform=x64 /p:TargetPlatformVersion=$uapSdk /nologo /v:minimal
 if ($LASTEXITCODE -ne 0) { throw "MSBuild restore failed." }
 
 & $msbuild $projPath `
     /t:Build `
     /p:Configuration=Release `
     /p:Platform=x64 `
+    /p:TargetPlatformVersion=$uapSdk `
     /p:UseDotNetNativeToolchain=true `
     /p:AppxBundle=Never `
     /p:UapAppxPackageBuildMode=SideloadOnly `
