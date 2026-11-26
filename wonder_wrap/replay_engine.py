@@ -128,9 +128,10 @@ class ReplayEngine:
         """
         sw = max(2, self.display.width & ~1)
         sh = max(2, self.display.height & ~1)
+        eff_fps = self.cfg.fps if self.cfg.fps > 0 else 60
 
         if self.cfg.synthetic_test:
-            vsrc = f"testsrc2=size={sw}x{sh}:rate={self.cfg.fps},format=bgra"
+            vsrc = f"testsrc2=size={sw}x{sh}:rate={eff_fps},format=bgra"
             vf = "format=nv12,hwupload" if use_d3d11_nvenc else "format=nv12"
             return vsrc, vf
 
@@ -139,9 +140,11 @@ class ReplayEngine:
         if game is not None and game.hwnd:
             # Windows Graphics Capture (WGC) locked to ONLY the game window HWND
             # regardless of which window is currently in focus or covering it.
+            # When fps == 0, set high ceiling (240) + VFR so WGC captures every frame at the game's native FPS.
+            fps_opt = f":max_framerate={self.cfg.fps}" if self.cfg.fps > 0 else ":max_framerate=240"
             vsrc = (
                 f"gfxcapture=hwnd={game.hwnd}"
-                f":max_framerate={self.cfg.fps}"
+                f"{fps_opt}"
                 f":capture_cursor={cursor_flag}"
                 f":capture_border=0"
                 f":display_border=0"
@@ -157,7 +160,7 @@ class ReplayEngine:
 
         vsrc = (
             f"ddagrab=output_idx={self.display.output_index}"
-            f":framerate={self.cfg.fps}"
+            f":framerate={eff_fps}"
             f":draw_mouse={cursor_flag}"
             f":output_fmt=bgra"
             f":allow_fallback=1"
@@ -218,9 +221,12 @@ class ReplayEngine:
         args += ["-g", str(gop)]
         if force_keyframes:
             args += ["-force_key_frames", f"expr:gte(t,n_forced*{self.cfg.segment_seconds})"]
+        if self.cfg.fps > 0:
+            args += ["-fps_mode", "cfr", "-r", str(self.cfg.fps)]
+        else:
+            # fps == 0 -> match the game's native frame pacing (VFR)
+            args += ["-fps_mode", "vfr"]
         args += [
-            "-fps_mode", "cfr",
-            "-r", str(self.cfg.fps),
             "-colorspace", "bt709",
             "-color_primaries", "bt709",
             "-color_trc", "bt709",
@@ -229,9 +235,11 @@ class ReplayEngine:
         return args
 
     def build_recorder_cmd(self) -> list[str]:
-        gop = self.cfg.fps * self.cfg.segment_seconds
-        # Keep +2 extra segments in playlist so 30s is always complete even mid-segment
-        list_size = (self.cfg.buffer_seconds // self.cfg.segment_seconds) + 2
+        eff_fps = self.cfg.fps if self.cfg.fps > 0 else 60
+        gop = eff_fps * self.cfg.segment_seconds
+        # buffer_seconds == 0 -> record entire game session (keep all segments until game exits)
+        full_session = self.cfg.buffer_seconds == 0
+        list_size = 0 if full_session else (self.cfg.buffer_seconds // self.cfg.segment_seconds) + 2
         seg_pattern = os.path.join(self.buffer_dir, "seg_%06d.ts")
 
         use_d3d11_nvenc = self.nv_adapter_index is not None
@@ -304,17 +312,16 @@ class ReplayEngine:
             "48000",
             "-ac",
             "2",
-            # Rolling 2-second MPEG-TS segments with atomic temp_file renames & auto-cleanup
+            # Rolling 2-second MPEG-TS segments (or full-session when buffer_seconds == 0)
             "-f",
             "hls",
             "-hls_time",
             str(self.cfg.segment_seconds),
             "-hls_list_size",
             str(list_size),
-            "-hls_delete_threshold",
-            "3",
+            *(["-hls_delete_threshold", "3"] if not full_session else []),
             "-hls_flags",
-            "delete_segments+temp_file+independent_segments",
+            ("temp_file+independent_segments" if full_session else "delete_segments+temp_file+independent_segments"),
             "-hls_segment_filename",
             seg_pattern,
             self.playlist_path,
@@ -323,7 +330,8 @@ class ReplayEngine:
 
     def build_manual_recording_cmd(self, ts_output_path: str) -> list[str]:
         """Build a low-RAM D3D11 NVENC + WASAPI continuous recording command to MPEG-TS."""
-        gop = self.cfg.fps * self.cfg.segment_seconds
+        eff_fps = self.cfg.fps if self.cfg.fps > 0 else 60
+        gop = eff_fps * self.cfg.segment_seconds
         use_d3d11_nvenc = self.nv_adapter_index is not None
 
         cmd = [
@@ -464,19 +472,21 @@ class ReplayEngine:
         restart_needed = False
         with self._mode_lock:
             if "buffer_sec" in updates:
-                val = max(5, min(1800, int(updates["buffer_sec"])))
+                raw_buf = int(updates["buffer_sec"])
+                val = 0 if raw_buf <= 0 else max(5, min(7200, raw_buf))
                 if val != self.cfg.buffer_seconds:
                     self.cfg.buffer_seconds = val
                     restart_needed = True
             if "fps" in updates:
-                val = 30 if int(updates["fps"]) <= 30 else 60
+                raw_fps = int(updates["fps"])
+                val = 0 if raw_fps <= 0 else max(15, min(240, raw_fps))
                 if val != self.cfg.fps:
                     self.cfg.fps = val
                     restart_needed = True
             if "video_bitrate" in updates:
-                vb = str(updates["video_bitrate"]).strip().upper()
-                if vb.endswith("M") and vb[:-1].isdigit():
-                    mbps = max(5, min(60, int(vb[:-1])))
+                vb = str(updates["video_bitrate"]).strip().upper().rstrip("M")
+                if vb.isdigit():
+                    mbps = max(2, min(100, int(vb)))
                     new_vb = f"{mbps}M"
                     if new_vb != self.cfg.video_bitrate:
                         self.cfg.video_bitrate = new_vb
@@ -484,10 +494,13 @@ class ReplayEngine:
                         self.cfg.video_bufsize = f"{mbps}M"
                         restart_needed = True
             if "audio_bitrate" in updates:
-                ab = str(updates["audio_bitrate"]).strip().lower()
-                if ab in ("128k", "192k", "256k", "320k") and ab != self.cfg.audio_bitrate:
-                    self.cfg.audio_bitrate = ab
-                    restart_needed = True
+                ab = str(updates["audio_bitrate"]).strip().lower().rstrip("k")
+                if ab.isdigit():
+                    kbps = max(64, min(320, int(ab)))
+                    new_ab = f"{kbps}k"
+                    if new_ab != self.cfg.audio_bitrate:
+                        self.cfg.audio_bitrate = new_ab
+                        restart_needed = True
             if "capture_cursor" in updates:
                 cc = bool(updates["capture_cursor"])
                 if cc != self.cfg.capture_cursor:
@@ -1029,6 +1042,10 @@ class ReplayEngine:
                     segments.append((seg_path, pending_dur))
                 pending_dur = float(self.cfg.segment_seconds)
 
+        # buffer_seconds == 0 -> keep every segment recorded since the game started
+        if self.cfg.buffer_seconds <= 0:
+            return segments
+
         # Pick trailing segments summing up to >= buffer_seconds
         selected: list[tuple[str, float]] = []
         total_dur = 0.0
@@ -1161,7 +1178,7 @@ class ReplayEngine:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
                 creationflags=CREATE_NO_WINDOW,
-                timeout=30,
+                timeout=120,
             )
             remux_ms = (time.perf_counter() - t0) * 1000.0
             daemon_mb, ff_mb, total_mb = self.get_ram_stats()

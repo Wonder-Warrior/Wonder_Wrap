@@ -351,7 +351,7 @@
                             VerticalAlignment="Center" />
                     </Grid>
 
-                    <!-- Row: Buffer Length & FPS -->
+                    <!-- Row: Buffer Length & FPS (numeric inputs with constraints; 0 = full / match game) -->
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -359,39 +359,29 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Spacing="3">
-                            <TextBlock Text="Replay Length" FontSize="11" Foreground="#FF9CA3AF" />
-                            <ComboBox
-                                x:Name="BufferCombo"
-                                HorizontalAlignment="Stretch"
+                            <TextBlock Text="Replay sec (0 = full)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                            <TextBox
+                                x:Name="BufferInput"
+                                InputScope="Number"
+                                MaxLength="4"
+                                PlaceholderText="0 = full"
                                 FontSize="11.5"
-                                SelectionChanged="SettingsControl_Changed">
-                                <ComboBoxItem Content="5 sec" Tag="5" />
-                                <ComboBoxItem Content="10 sec" Tag="10" />
-                                <ComboBoxItem Content="15 sec" Tag="15" />
-                                <ComboBoxItem Content="30 sec" Tag="30" />
-                                <ComboBoxItem Content="45 sec" Tag="45" />
-                                <ComboBoxItem Content="1 min" Tag="60" />
-                                <ComboBoxItem Content="90 sec" Tag="90" />
-                                <ComboBoxItem Content="2 min" Tag="120" />
-                                <ComboBoxItem Content="3 min" Tag="180" />
-                                <ComboBoxItem Content="5 min" Tag="300" />
-                                <ComboBoxItem Content="10 min" Tag="600" />
-                                <ComboBoxItem Content="15 min" Tag="900" />
-                                <ComboBoxItem Content="20 min" Tag="1200" />
-                                <ComboBoxItem Content="30 min" Tag="1800" />
-                            </ComboBox>
+                                ToolTipService.ToolTip="0 = record entire game session, or 5 to 7200 sec"
+                                LostFocus="NumericInput_LostFocus"
+                                KeyDown="NumericInput_KeyDown" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Spacing="3">
-                            <TextBlock Text="Frame Rate" FontSize="11" Foreground="#FF9CA3AF" />
-                            <ComboBox
-                                x:Name="FpsCombo"
-                                HorizontalAlignment="Stretch"
+                            <TextBlock Text="FPS (0 = game)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                            <TextBox
+                                x:Name="FpsInput"
+                                InputScope="Number"
+                                MaxLength="3"
+                                PlaceholderText="0 = game"
                                 FontSize="11.5"
-                                SelectionChanged="SettingsControl_Changed">
-                                <ComboBoxItem Content="30 fps" Tag="30" />
-                                <ComboBoxItem Content="60 fps" Tag="60" />
-                            </ComboBox>
+                                ToolTipService.ToolTip="0 = match game FPS (VFR), or 15 to 240 FPS"
+                                LostFocus="NumericInput_LostFocus"
+                                KeyDown="NumericInput_KeyDown" />
                         </StackPanel>
                     </Grid>
 
@@ -403,31 +393,29 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Spacing="3">
-                            <TextBlock Text="Video Bitrate" FontSize="11" Foreground="#FF9CA3AF" />
-                            <ComboBox
-                                x:Name="VideoBitrateCombo"
-                                HorizontalAlignment="Stretch"
+                            <TextBlock Text="Video Mbps (2-100)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                            <TextBox
+                                x:Name="VideoBitrateInput"
+                                InputScope="Number"
+                                MaxLength="3"
+                                PlaceholderText="18"
                                 FontSize="11.5"
-                                SelectionChanged="SettingsControl_Changed">
-                                <ComboBoxItem Content="10 Mbps" Tag="10M" />
-                                <ComboBoxItem Content="15 Mbps" Tag="15M" />
-                                <ComboBoxItem Content="18 Mbps" Tag="18M" />
-                                <ComboBoxItem Content="25 Mbps" Tag="25M" />
-                                <ComboBoxItem Content="35 Mbps" Tag="35M" />
-                            </ComboBox>
+                                ToolTipService.ToolTip="Video bitrate in Mbps (2 to 100)"
+                                LostFocus="NumericInput_LostFocus"
+                                KeyDown="NumericInput_KeyDown" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Spacing="3">
-                            <TextBlock Text="Audio Bitrate" FontSize="11" Foreground="#FF9CA3AF" />
-                            <ComboBox
-                                x:Name="AudioBitrateCombo"
-                                HorizontalAlignment="Stretch"
+                            <TextBlock Text="Audio kbps (64-320)" FontSize="10.5" Foreground="#FF9CA3AF" />
+                            <TextBox
+                                x:Name="AudioBitrateInput"
+                                InputScope="Number"
+                                MaxLength="3"
+                                PlaceholderText="192"
                                 FontSize="11.5"
-                                SelectionChanged="SettingsControl_Changed">
-                                <ComboBoxItem Content="128 kbps" Tag="128k" />
-                                <ComboBoxItem Content="192 kbps" Tag="192k" />
-                                <ComboBoxItem Content="256 kbps" Tag="256k" />
-                            </ComboBox>
+                                ToolTipService.ToolTip="Audio bitrate in kbps (64 to 320)"
+                                LostFocus="NumericInput_LostFocus"
+                                KeyDown="NumericInput_KeyDown" />
                         </StackPanel>
                     </Grid>
 

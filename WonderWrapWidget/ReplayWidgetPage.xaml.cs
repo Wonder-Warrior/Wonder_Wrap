@@ -4,9 +4,11 @@ using System.Threading.Tasks;
 using Microsoft.Gaming.XboxGameBar;
 using Windows.Data.Json;
 using Windows.Foundation;
+using Windows.System;
 using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using Windows.Web.Http;
@@ -230,8 +232,9 @@ namespace WonderWrapWidget
 
             string gameSuffix = string.IsNullOrEmpty(game) ? string.Empty : " (" + game + ")";
             ToolTipService.SetToolTip(ScreenshotButton, "Take screenshot" + gameSuffix);
+            string replayLenLabel = bufferSec <= 0 ? "full session" : string.Format("last {0}s", bufferSec);
             ToolTipService.SetToolTip(SaveButton, isReplay
-                ? string.Format("Save last {0}s{1} ({2})", bufferSec, gameSuffix, _hotkey)
+                ? string.Format("Save {0}{1} ({2})", replayLenLabel, gameSuffix, _hotkey)
                 : (isRecording ? "Unavailable while manually recording" : "Instant Replay activates while gaming"));
             ToolTipService.SetToolTip(RecordButton, isRecording
                 ? "Stop recording" + gameSuffix
@@ -320,6 +323,17 @@ namespace WonderWrapWidget
             }
         }
 
+        private static int ParseDigits(string text, int fallback)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return fallback;
+            string digits = string.Empty;
+            foreach (char c in text)
+            {
+                if (char.IsDigit(c)) digits += c;
+            }
+            return int.TryParse(digits, out int val) ? val : fallback;
+        }
+
         private async Task LoadSettingsAsync()
         {
             _loadingSettings = true;
@@ -332,10 +346,10 @@ namespace WonderWrapWidget
                     string body = await resp.Content.ReadAsStringAsync().AsTask(cts.Token);
                     if (!JsonObject.TryParse(body, out JsonObject s)) return;
 
-                    if (s.ContainsKey("buffer_sec")) SelectComboByTag(BufferCombo, ((int)s["buffer_sec"].GetNumber()).ToString());
-                    if (s.ContainsKey("fps")) SelectComboByTag(FpsCombo, ((int)s["fps"].GetNumber()).ToString());
-                    if (s.ContainsKey("video_bitrate")) SelectComboByTag(VideoBitrateCombo, s["video_bitrate"].GetString());
-                    if (s.ContainsKey("audio_bitrate")) SelectComboByTag(AudioBitrateCombo, s["audio_bitrate"].GetString());
+                    if (s.ContainsKey("buffer_sec")) BufferInput.Text = ((int)s["buffer_sec"].GetNumber()).ToString();
+                    if (s.ContainsKey("fps")) FpsInput.Text = ((int)s["fps"].GetNumber()).ToString();
+                    if (s.ContainsKey("video_bitrate")) VideoBitrateInput.Text = ParseDigits(s["video_bitrate"].GetString(), 18).ToString();
+                    if (s.ContainsKey("audio_bitrate")) AudioBitrateInput.Text = ParseDigits(s["audio_bitrate"].GetString(), 192).ToString();
                     if (s.ContainsKey("hotkey"))
                     {
                         _hotkey = s["hotkey"].GetString();
@@ -376,19 +390,59 @@ namespace WonderWrapWidget
             }
         }
 
+        private async void NumericInput_LostFocus(object sender, RoutedEventArgs e)
+        {
+            await ApplySettingsFromUiAsync();
+        }
+
+        private async void NumericInput_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Enter)
+            {
+                e.Handled = true;
+                await ApplySettingsFromUiAsync();
+            }
+        }
+
         private async void SettingsControl_Changed(object sender, RoutedEventArgs e)
+        {
+            await ApplySettingsFromUiAsync();
+        }
+
+        private async Task ApplySettingsFromUiAsync()
         {
             if (_loadingSettings || !_isOnline) return;
 
+            int rawBuf = ParseDigits(BufferInput.Text, _bufferSec);
+            int clampedBuf = rawBuf <= 0 ? 0 : Math.Max(5, Math.Min(7200, rawBuf));
+
+            int rawFps = ParseDigits(FpsInput.Text, 60);
+            int clampedFps = rawFps <= 0 ? 0 : Math.Max(15, Math.Min(240, rawFps));
+
+            int rawVbr = ParseDigits(VideoBitrateInput.Text, 18);
+            int clampedVbr = Math.Max(2, Math.Min(100, rawVbr));
+
+            int rawAbr = ParseDigits(AudioBitrateInput.Text, 192);
+            int clampedAbr = Math.Max(64, Math.Min(320, rawAbr));
+
+            _loadingSettings = true;
+            try
+            {
+                BufferInput.Text = clampedBuf.ToString();
+                FpsInput.Text = clampedFps.ToString();
+                VideoBitrateInput.Text = clampedVbr.ToString();
+                AudioBitrateInput.Text = clampedAbr.ToString();
+            }
+            finally
+            {
+                _loadingSettings = false;
+            }
+
             var payload = new JsonObject();
-            if (BufferCombo.SelectedItem is ComboBoxItem bItem && int.TryParse(bItem.Tag as string, out int bSec))
-                payload["buffer_sec"] = JsonValue.CreateNumberValue(bSec);
-            if (FpsCombo.SelectedItem is ComboBoxItem fItem && int.TryParse(fItem.Tag as string, out int fpsVal))
-                payload["fps"] = JsonValue.CreateNumberValue(fpsVal);
-            if (VideoBitrateCombo.SelectedItem is ComboBoxItem vItem && vItem.Tag is string vb)
-                payload["video_bitrate"] = JsonValue.CreateStringValue(vb);
-            if (AudioBitrateCombo.SelectedItem is ComboBoxItem aItem && aItem.Tag is string ab)
-                payload["audio_bitrate"] = JsonValue.CreateStringValue(ab);
+            payload["buffer_sec"] = JsonValue.CreateNumberValue(clampedBuf);
+            payload["fps"] = JsonValue.CreateNumberValue(clampedFps);
+            payload["video_bitrate"] = JsonValue.CreateStringValue(clampedVbr + "M");
+            payload["audio_bitrate"] = JsonValue.CreateStringValue(clampedAbr + "k");
             if (HotkeyCombo.SelectedItem is ComboBoxItem hItem && hItem.Tag is string hk)
             {
                 _hotkey = hk;

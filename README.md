@@ -11,8 +11,8 @@ The default Windows 11 **Capture** widget (`GameDVR` / `Broadcast DVR Server`) i
 | **Memory Usage (Active)** | Often 400–800+ MB (`bcastdvr.exe` + shell) | **< 150 MB total** (~130 MB active, **~18 MB idle**) |
 | **Idle Overhead (Not Gaming)** | Background DVR services linger in memory | **0% GPU, ~18 MB RAM** until a game launches |
 | **Alt-Tab / Tabbed-Out Recording** | Pauses, drops frames, or stops when unfocused | **Keeps recording only the game window** via WGC (`gfxcapture`) even when tabbed out |
-| **Replay Buffer Length** | Fixed presets buried in Windows Settings | **5 sec up to 30 min** (`5s`–`1800s`) right inside the widget |
-| **Video & Audio Quality** | Limited "Standard / High" toggles | **30/60 FPS**, **10–35 Mbps** hardware NVENC/AMF/QSV, **128–256 kbps** AAC |
+| **Replay Buffer Length** | Fixed presets buried in Windows Settings | **Custom input (`5s–7200s`) or `0` = full game session** right inside the widget |
+| **Video & Audio Quality** | Limited "Standard / High" toggles | **Custom FPS (`15–240` or `0` = match game FPS)**, **2–100 Mbps** NVENC/AMF/QSV, **64–320 kbps** AAC |
 | **Save Speed** | Re-muxing/flushing delays & stutters | **Instant lossless `-c copy` MP4** via NTFS hard links (zero recording hitch) |
 | **Capture Location** | Hardcoded to `Videos\Captures` unless Registry/Folder moved | **1-click Browse** folder picker inside Settings |
 | **False-Positive Apps** | No quick override inside Capture | **1-click "Not a game"** ignore button + smart Win32 UI-framework filtering |
